@@ -1,0 +1,5 @@
+Use make on src to create PorterStemmer shared library
+Compile with:
+javac -d bin @java-files
+Create jar with:
+jar cfv MIEProvider.jar @files
