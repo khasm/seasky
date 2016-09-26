@@ -1,3 +1,5 @@
+jdk-8u91-linux-x64.tar.gz must be downloaded from http://www.oracle.com/technetwork/java/javase/downloads/java-archive-javase8-2177648.html#jdk-8u91-oth-JPR and placed inside the docker-mie folder
+
 docker-ramcloud contains ramcloud coordinator and storage servers. each storage cloud must be running one of these dockers
 
 starting the docker might be done with a command similar to:
