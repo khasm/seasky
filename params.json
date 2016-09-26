@@ -1,0 +1,6 @@
+{
+  "name": "Privacy-Enhanced Dependable and Searchable Storage in a Cloud-of-Clouds",
+  "tagline": "",
+  "body": "Implementation of a middleware system with multi modal search capabilities and multi cloud storage. User data is kept encrypted at all times, while still allowing searches to be performed. Data is fragmented, signed and replicated over four storage clouds for availability and integrity. Please contact @khasm for access.\r\n\r\n\r\n\r\n\r\n\r\n\r\n\r\n\r\n",
+  "note": "Don't delete this file! It's used internally to help with page regeneration."
+}
