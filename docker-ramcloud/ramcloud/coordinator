@@ -1,0 +1,3 @@
+#!/bin/bash
+
+obj.master/coordinator -C tcp:host="$1",port="$2" -x zk:"$3" --logFile coordinator.log --clusterName test-cluster

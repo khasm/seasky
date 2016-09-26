@@ -1,0 +1,3 @@
+#!/bin/bash
+
+make EXTRACXXFLAGS="-DIBV_QPT_RAW_ETH=IBV_QPT_RAW_PACKET" -j2 DEBUG=no

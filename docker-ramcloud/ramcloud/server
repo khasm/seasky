@@ -1,0 +1,3 @@
+#!/bin/bash
+
+obj.master/server -L tcp:host="$1",port="$2" -x zk:"$3" --totalMasterMemory 5120 -f backup.ramcloud --segmentFrames 256 -r 0 --logFile server.log --clusterName test-cluster
