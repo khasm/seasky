@@ -1,0 +1,131 @@
+#!/bin/bash
+
+#nargs=0
+#while [ "$1" != "" ] && [ "$nargs" -lt "5" ]; do
+#	nargs=$((nargs+1))
+#	shift
+#done
+#echo "Number of arguments: "$nargs
+#echo "Remaining parameters: ""$@"
+
+#variables
+zookeeper=false
+memcached=false
+coordinator=false
+ramcloud_ip="127.0.0.1"
+coordinator_port="11100"
+zk_ip="127.0.0.1:2181"
+ramcloud_storage=false
+ramcloud_storage_port="11101"
+depsky_storage=false
+middleware=false
+middleware_args[0]=""
+middleware_args[1]=""
+middleware_args[2]=""
+middleware_args[3]=""
+middleware_args[4]=""
+cluster_id=0
+
+if [ "$1" == "--help" ] || [ "$1" == "" ] || [ "$1" == "-h" ]; then
+	echo "Usage: docker run mie <options>"
+	echo "Options:"
+	echo "zk:			Start zookeeper server"
+	echo "mc:			Start memcached server"
+	echo "rcc <cluster id>:		Start ramcloud coordinator"
+	echo "rcs:			Start ramcloud storage server"
+	echo "rc <cluster id>:		Start ramcloud coordinator and storage server"
+	echo "rczk <ip address:port>:	Define zookeeper server address and port for ramcloud servers to connect to"
+	echo "rcip <ip address>:	Define ip address for ramcloud servers to listen on"
+	echo "rccp <port>:		Define port for ramcloud coordinator"
+	echo "rcsp <port>:		Define port for ramcloud server"
+	echo "ds-local:		Start local depsky storage"
+	echo "mw <server> <storage> [cache/nocache] [testbench2/testbench3]:	Start middleware server. <server> is one of mie or mieMT, <storage> is one of depsky or ramcloud"
+fi
+
+#parse command line arguments
+while [ "$1" != "" ]; do
+	if [ "$1" == "zk" ]; then
+		zookeeper=true
+	elif [ "$1" == "mc" ]; then
+		memcached=true
+	elif [ "$1" == "rcc" ]; then
+		coordinator=true
+		cluster_id=$2
+		shift
+	elif [ "$1" == "rcs" ]; then
+		ramcloud_storage=true
+	elif [ "$1" == "rc" ]; then
+		coordinator=true
+		ramcloud_storage=true
+		cluster_id=$2
+		shift
+	elif [ "$1" == "rczk" ]; then
+		zk_ip=$2
+		shift
+	elif [ "$1" == "rcip" ]; then
+		ramcloud_ip=$2
+		shift
+	elif [ "$1" == "rccp" ]; then
+		coordinator_port=$2
+		shift
+	elif [ "$1" == "rcsp" ]; then
+		ramcloud_storage_port=$2
+		shift
+	elif [ "$1" == "ds-local" ]; then
+		depsky_storage=true
+	elif [ "$1" == "mw" ]; then
+		middleware=true
+		middleware_args[0]=$2
+		finish="false"
+		index=1
+		while [ "$finish" != true ]; do
+			if [ "$3" == "depsky" ] || [ "$3" == "ramcloud" ] || [ "$3" == "cache" ] || [ "$3" == "nocache" ] ||
+				[ "$3" == "testbench2" ] || [ "$3" == "testbench3" ]; then
+				middleware_args[$index]=$3
+				index=$(($index+1))
+				shift
+			else
+				finish="true"
+			fi
+		done
+		shift
+	fi
+	shift
+done
+if [ "$zookeeper" = true ]; then
+	cd /usr/share/zookeeper/bin
+	/usr/share/zookeeper/bin/zkServer.sh start
+	echo "Executing zookeeper in background"
+fi
+if [ "$memcached" = true ]; then
+	cd /memcached
+	/memcached/memcached -u jj &
+	echo "Executing memcached in background"
+fi
+if [ "$coordinator" = true ]; then
+	cd /RAMCloud
+	/RAMCloud/obj.master/coordinator -C tcp:host=$ramcloud_ip,port=$coordinator_port -x zk:$zk_ip --clusterName test-cluster$cluster_id &
+	echo "Executing ramcloud coordinator in background"
+	sleep 10
+fi
+if [ "$ramcloud_storage" = true ]; then
+	cd /RAMCloud
+	if [ "$middleware" = true ]; then
+		/RAMCloud/obj.master/server -L tcp:host=$ramcloud_ip,port=$ramcloud_storage_port -x zk:$zk_ip --totalMasterMemory 4096 -f backup.ramcloud --segmentFrames 256 -r 0 --clusterName test-cluster$cluster_id &
+	else
+		/RAMCloud/obj.master/server -L tcp:host=$ramcloud_ip,port=$ramcloud_storage_port -x zk:$zk_ip --totalMasterMemory 4096 -f backup.ramcloud --segmentFrames 256 -r 0 --clusterName test-cluster$cluster_id
+	fi
+	echo "Executing ramcloud storage in background"
+	sleep 10
+fi
+if [ "$depsky_storage" = true ]; then
+	cd /mie/Server
+	/mie/Server/Run_LocalStorage.sh &
+	echo "Executing depsky storage in background"
+fi
+if [ "$middleware" = true ]; then
+	cd /mie/Server
+	echo "/mie/Server/run_server "${middleware_args[0]}" "${middleware_args[1]}" "${middleware_args[2]}" "${middleware_args[3]}" "${middleware_args[4]}
+        sleep 20
+	/mie/Server/run_server ${middleware_args[0]} ${middleware_args[1]} ${middleware_args[2]} ${middleware_args[3]} ${middleware_args[4]}
+fi

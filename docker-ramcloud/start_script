@@ -1,0 +1,74 @@
+#!/bin/bash
+
+#variables
+zookeeper=false
+coordinator=false
+ramcloud_ip="127.0.0.1"
+coordinator_port="11100"
+zk_ip="127.0.0.1:2181"
+ramcloud_storage=false
+ramcloud_storage_port="11101"
+cluster_id=0
+
+
+if [ "$1" == "--help" ] || [ "$1" == "" ] || [ "$1" == "-h" ]; then
+	echo "Usage: docker run ramcloud <options>"
+	echo "Options:"
+	echo "zk:						Start zookeeper server"
+	echo "rcc <cluster_id>:			Start ramcloud coordinator"
+	echo "rcs <cluster_id>:			Start ramcloud storage server"
+	echo "rc <cluster_id>:			Start ramcloud coordinator and storage server"
+	echo "rczk <ip address:port>:	Define zookeeper server address and port for ramcloud servers to connect to"
+	echo "rcip <ip address>:		Define ip address for ramcloud servers to listen on"
+	echo "rccp <port>:				Define port for ramcloud coordinator"
+	echo "rcsp <port>:				Define port for ramcloud server"
+fi
+
+#parse command line arguments
+while [ "$1" != "" ]; do
+	if [ "$1" == "zk" ]; then
+		zookeeper=true
+	elif [ "$1" == "rcc" ]; then
+		coordinator=true
+		cluster_id=$2
+		shift
+	elif [ "$1" == "rcs" ]; then
+		ramcloud_storage=true
+		cluster_id=$2
+		shift
+	elif [ "$1" == "rc" ]; then
+		coordinator=true
+		ramcloud_storage=true
+		cluster_id=$2
+		shift
+	elif [ "$1" == "rczk" ]; then
+		zk_ip=$2
+		shift
+	elif [ "$1" == "rcip" ]; then
+		ramcloud_ip=$2
+		shift
+	elif [ "$1" == "rccp" ]; then
+		coordinator_port=$2
+		shift
+	elif [ "$1" == "rcsp" ]; then
+		ramcloud_storage_port=$2
+		shift
+	fi
+	shift
+done
+if [ "$zookeeper" = true ]; then
+	cd /usr/share/zookeeper/bin
+	/usr/share/zookeeper/bin/zkServer.sh start
+	echo "Executing zookeeper in background"
+fi
+if [ "$coordinator" = true ]; then
+	cd /RAMCloud
+	/RAMCloud/obj.master/coordinator -C tcp:host=$ramcloud_ip,port=$coordinator_port -x zk:$zk_ip --clusterName test-cluster$cluster_id &
+	echo "Executing ramcloud coordinator in background"
+	sleep 10
+fi
+if [ "$ramcloud_storage" = true ]; then
+	cd /RAMCloud
+	/RAMCloud/obj.master/server -L tcp:host=$ramcloud_ip,port=$ramcloud_storage_port -x zk:$zk_ip --totalMasterMemory 1024 -f backup.ramcloud --segmentFrames 256 -r 0 --clusterName test-cluster$cluster_id
+	sleep 10
+fi

@@ -1,0 +1,46 @@
+Installation:
+
+sudo apt-get update && sudo apt-get install -y cmake libgmp-dev g++
+
+cd tpm-emulator-master/
+mkdir build
+cd build/
+cmake ../
+make
+sudo make install 
+sudo depmod -a
+sudo modprobe tpmd_dev
+
+restart
+
+sudo tpmd -f
+(new terminal)
+sudo apt-get -y install trousers
+sudo apt-get -y install tpm-tools
+sudo apt-get -y install libtspi-dev libtspi1
+
+confirm that its working:
+sudo tcsd -e -f
+(new terminal)
+tpm_version
+
+cd tpm-quote-tools-1.0.2/
+./configure 
+make
+sudo make install
+
+tpm_clear --force
+#restart
+./run_tpm.sh
+tpm_setenable --enable --force
+tpm_setactive --active
+#restart
+./run_tpm.sh
+tpm_takeownership -z -y
+
+#create keys and uuid
+tpm_mkuuid uuid
+tpm_mkaik -z aik pubkey
+tpm_loadkey aik uuid
+
+client will need uuid and pubkey to verify quotes
