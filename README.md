@@ -35,11 +35,11 @@ testbench3 indicates where to store the buckets. there is no need to run other d
 
 TPM verification is implemented in the client side using C++. The java client access these functions by using JNI. For the verification to succeed the files "uuid", "pubkey" and "hash" must be in the working directory of the client. These files are generated automatically by running the tpm_loader executable on the middleware server. They need to be manually copied to the client in a trusted environment (the tpm_loader itself its only a simulation of what the TPM should actually do and would not be executed in a real use case, the generation of these files is just for convenience as they could be created using the tpm_quote_tools package). On the server side only the tpm emulador and trousers need to be running for the verification to be performed. Trousers needs to be configured to accept remote connections and to allow the quote and loadkey operations remotely. This is done by uncommenting the lines
 
-# port = 30003
+\# port = 30003
 
 and
 
-# remote_ops = quote,loadkey
+\# remote_ops = quote,loadkey
 
 in the tcsd.conf file (usually located in /usr/local/etc/tcsd.conf). In trousers 0.3.13 there is a bug that uncommenting those lines will block all connections, remote and local. The provided version has that bug fixed. More recent versions can be downloaded from "https://sourceforge.net/p/trousers/trousers/ci/master/tree/".
 
