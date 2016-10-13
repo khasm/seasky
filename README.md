@@ -2,7 +2,7 @@ jdk-8u91-linux-x64.tar.gz must be downloaded from http://www.oracle.com/technetw
 
 opencv-3.0.0 must be downloaded from https://github.com/Itseez/opencv/archive/3.0.0.zip, decompressed and placed in docker-mie folder.
 
-docker-ramcloud contains ramcloud coordinator and storage servers. each storage cloud must be running one of these dockers
+docker-ramcloud contains the ramcloud coordinator and storage servers. each storage cloud must be running one of these dockers
 
 starting the docker might be done with a command similar to:
 
@@ -33,6 +33,29 @@ testbench3 indicates where to store the buckets. there is no need to run other d
 
 //*****************TPM***********************//
 
-TPM verification is implemented in the client side without extra processes but requires additional support on the server side. after creating the uuid and aik and placing them in the client directory tpm_loader must be executed. this will update the pcr with an hash of the docker inspect mie command. this commands gives metadata information about the image currently available to execute in the docker, including the hashes of the layers that make up the image as well as creation and modification dates. if the overlay driver is available is it possible to generate an hash of the actual contents of the image (this code is commented out as ubuntu 14.04 avaiable on the amazon clouds doesn't support overlay natively). after executing tpm_loader an hash file will be generated. this hash must be placed in the client directory so the client can verify the pcr status.
-After this the tpm_server must be executed to act as proxy between the client and the tpm. Because of a bug with trousers remote operations will always fail. Although there is already a version with that bug fixed quote2 operations are not available remotely which forces the execution of the quote operation locally. The verifyquote operation is done on the client side using the uuid, pubkey and hash that were placed there before hand.
-Client verification is a proof of concept and currently doesn't affect operations, it just outputs to stdout if the verification succeeded and affects an internal variable based on the result.
+TPM verification is implemented in the client side using C++. The java client access these functions by using JNI. For the verification to succeed the files "uuid", "pubkey" and "hash" must be in the working directory of the client. These files are generated automatically by running the tpm_loader executable on the middleware server. They need to be manually copied to the client in a trusted environment (the tpm_loader itself its only a simulation of what the TPM should actually do and would not be executed in a real use case, the generation of these files is just for convenience as they could be created using the tpm_quote_tools package). On the server side only the tpm emulador and trousers need to be running for the verification to be performed. Trousers needs to be configured to accept remote connections and to allow the quote and loadkey operations remotely. This is done by uncommenting the lines
+
+# port = 30003
+
+and
+
+# remote_ops = quote,loadkey
+
+in the tcsd.conf file (usually located in /usr/local/etc/tcsd.conf). In trousers 0.3.13 there is a bug that uncommenting those lines will block all connections, remote and local. The provided version has that bug fixed. More recent versions can be downloaded from "https://sourceforge.net/p/trousers/trousers/ci/master/tree/".
+
+Start the tpm emulator:
+
+sudo tpmd -d -f
+
+-d: debug output (optional)
+-f: keep process in foreground (optional, will be moved to background if ommited)
+
+Start trousers:
+
+sudo tcsd -e -f
+
+-f: keep process in foreground (optional, will be moved to background if ommited)
+
+-e: connect to software TPMs over tcp
+
+Client verification is a proof of concept and currently doesn't affect operations, it just outputs to stdout if the verification succeeded and affects an internal variable based on the result, which could be used to perform decisions based on the verification result.

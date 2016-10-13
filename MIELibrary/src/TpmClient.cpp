@@ -1,4 +1,5 @@
 #include "TpmClient.h"
+#include "TpmCommon.h"
 #include <sys/types.h>
 #include <sys/socket.h>
 #include <netinet/in.h>
@@ -7,81 +8,188 @@
 #include <cstring>
 #include <fstream>
 #include <memory>
+#include <arpa/inet.h>
+#include <openssl/rand.h>
+#include <openssl/evp.h>
+#include <openssl/err.h>
 
 using namespace std;
 
-/* Executes a bash command and returns both its stdout and stderr in a string */
-string read_command(string comm){
-	char buffer[128];
-	comm.append(" 2>&1");
-	string result = "";
-	shared_ptr<FILE> pipe(popen(comm.c_str(), "r"), pclose);
-	if (!pipe)
-		throw runtime_error("popen() failed!");
-	while(fgets(buffer, 128, pipe.get()) != NULL)
-		result += buffer;
-	return result;
+static const uint32_t NONCE_SIZE = 20;
+static const uint32_t MAX_RND_BYTES = 16;
+
+bool seedPrng()
+{
+    int ret = RAND_load_file("/dev/random", 32);
+    if(32 != ret)
+        return false;
+    else
+        return true;
+}
+
+bool digestNonce(unsigned char* nonce, uint32_t size)
+{
+    ///create context and initialize variables
+    EVP_MD_CTX* ctx = EVP_MD_CTX_create();
+    unsigned char buffer[EVP_MAX_MD_SIZE];
+    unsigned hash_size = 0;
+    if(!EVP_DigestInit_ex(ctx, EVP_sha1(), NULL)){
+        ERR_print_errors_fp(stderr);
+        return false;
+    }
+    ///do digest
+    if(!EVP_DigestUpdate(ctx, nonce, size)){
+        ERR_print_errors_fp(stderr);
+        goto cleanup;
+    }
+    if(!EVP_DigestFinal_ex(ctx, buffer, &hash_size)){
+        ERR_print_errors_fp(stderr);
+        goto cleanup;
+    }
+    //use first size bytes of buffer as nonce
+    memcpy(nonce, buffer, size);
+    //cleanup
+    cleanup:
+    EVP_MD_CTX_destroy(ctx);
+    if(0 < hash_size && size <= hash_size)
+        return true;
+    else
+        return false;
+}
+
+bool generateNonce(unsigned char* nonce, uint32_t size)
+{
+    /* size should always be NONCE_SIZE but make sure this function
+    is never executed outside of the bounds it can support */
+    if(0 == size || NONCE_SIZE < size)
+        return false;
+    static uint32_t counter = 0;
+    counter++;
+    uint32_t tmp = htonl(counter);
+    if(4 >= size){
+        /* unsafe nonce, can easily be predicted and an attacker
+        can prepare a response ahead of time */
+        memcpy(nonce, ((char*)&tmp) + 4 - size, size);
+        return digestNonce(nonce, size);
+    }
+    else{
+        memcpy(nonce, (char*)&tmp, 4);
+    }
+    static bool seeded = false;
+    if(!seeded){
+        if(seedPrng()){
+            seeded = true;
+        }
+        else{
+            return false;
+        }
+    }
+    uint32_t rnd_bytes = MAX_RND_BYTES < size - 4 ? MAX_RND_BYTES : size - 4;
+    if(!RAND_bytes(nonce + 4, rnd_bytes))
+        return false;
+    return digestNonce(nonce, size);
 }
 
 bool verify(const string& address)
 {
-	int sockfd = socket(AF_INET, SOCK_STREAM, 0);
-    struct hostent *server = gethostbyname(address.c_str());
-    struct sockaddr_in serv_addr;
-    bzero((char *) &serv_addr, sizeof(serv_addr));
-    serv_addr.sin_family = AF_INET;
-    bcopy((char *)server->h_addr,(char*)&serv_addr.sin_addr.s_addr,server->h_length);
-    serv_addr.sin_port = htons(9977);
-    if (connect(sockfd,(struct sockaddr*) &serv_addr,sizeof(serv_addr)) < 0)
-    	return false;
-    uint32_t nonce_size = 20;
-    unsigned char nonce[nonce_size];
-    for(unsigned i = 0; i < nonce_size; i++){
-        nonce[i] = (unsigned char)'0'+i;
+    //get uuid from file
+    ifstream in("uuid");
+    in.seekg(0, ios::end);
+    size_t uuid_len = in.tellg();
+    TSS_UUID uuid;
+    if(sizeof(uuid) != uuid_len){
+        in.close();
+        return false;
     }
-    unsigned total = 0;
-    while(total < nonce_size) {
-        size_t n = send(sockfd, nonce + total, nonce_size - total, 0);
-        if (n == (size_t)-1) { break; }
-        total += n;
+    in.seekg(0, ios::beg);
+    in.read((char*)&uuid, sizeof(uuid));
+    in.close();
+
+    TSS_VALIDATION valid;
+    //generate nonce
+    BYTE nonce[NONCE_SIZE];
+    if(!generateNonce(nonce, NONCE_SIZE)){
+        return false;
     }
-    if(total != nonce_size){
-    	close(sockfd);
-    	return false;
+    valid.ulExternalDataLength = NONCE_SIZE;
+    valid.rgbExternalData = nonce;
+    //select pcrs
+    vector<int> pcrs;
+    pcrs.push_back(16);
+    //get quote
+    TSS_RESULT result = getQuote(uuid, address, pcrs, valid);
+    if(TSS_SUCCESS != result){
+        return false;
     }
-    ofstream out("nonce");
-    out.write((char*)nonce, nonce_size);
-    out.close();
-    unsigned ans_size = 0;
-    uint32_t b = 0;
-    unsigned r = 0;
-    while (r < sizeof(uint32_t)) {
-        ssize_t n = read(sockfd, &b + r, sizeof(uint32_t) - r);
-        if (n < 0){
-        	close(sockfd);
-        	return false;
-        }
-        r+=n;
+    //read hash
+    in.open("hash");
+    in.seekg(0, ios::end);
+    size_t hash_size = in.tellg();
+    in.seekg(0, ios::beg);
+    BYTE hash[hash_size];
+    in.read((char*)hash, hash_size);
+    in.close();
+    //read public key
+    in.open("pubkey");
+    in.seekg(0, ios::end);
+    size_t pubkey_raw_size = in.tellg();
+    in.seekg(0, ios::beg);
+    BYTE pubkey_raw[pubkey_raw_size];
+    in.read((char*)pubkey_raw, pubkey_raw_size);
+    in.close();
+    UINT32 blobType;
+    BYTE pubkey[pubkey_raw_size];
+    UINT32 pubkey_size = pubkey_raw_size;
+    result = Tspi_DecodeBER_TssBlob(pubkey_raw_size, pubkey_raw, &blobType, &pubkey_size, pubkey);
+    if(TSS_SUCCESS != result){
+        return false;
     }
-    ans_size = ntohl(b);
-    if(0 == ans_size)
-    	return false;
-    char quote[ans_size];
-    r = 0;
-    while (r < ans_size) {
-        ssize_t n = read(sockfd, &quote + r, ans_size - r);
-        if (n < 0){
-        	close(sockfd);
-        	return false;
-        }
-        r+=n;
+    if(TSS_BLOB_TYPE_PUBKEY != blobType) {
+        return false;
     }
-    out.open("quote");
-    out.write(quote, ans_size);
-    out.close();
-    string command = read_command("tpm_verifyquote pubkey hash nonce quote");
-    if(command.empty())
-    	return true;
-    else
-    	return false;
+    //create verify context
+    TSS_HCONTEXT vContext;
+    result = Tspi_Context_Create(&vContext);
+    if(TSS_SUCCESS != result){
+        return false;
+    }
+    //setup public key
+    TSS_HKEY hPubAIK;
+    int initFlags = TSS_KEY_TYPE_IDENTITY | TSS_KEY_SIZE_2048;
+    result = Tspi_Context_CreateObject(vContext, TSS_OBJECT_TYPE_RSAKEY, initFlags, &hPubAIK);
+    if(TSS_SUCCESS != result){
+        return false;
+    }
+    result = Tspi_SetAttribData(hPubAIK, TSS_TSPATTRIB_KEY_BLOB, TSS_TSPATTRIB_KEYBLOB_PUBLIC_KEY,
+        pubkey_size, pubkey);
+    if(TSS_SUCCESS != result){
+        return false;
+    }
+    //set up hash for verification
+    TPM_NONCE* hash_nonce;
+    TPM_QUOTE_INFO2* info2 = (TPM_QUOTE_INFO2*)&hash;
+    if(info2->fixed[2] == 'T'){
+        hash_nonce = &((TPM_QUOTE_INFO2*)&hash)->externalData;
+    }
+    TPM_QUOTE_INFO* info = (TPM_QUOTE_INFO*)&hash;
+    if(info->fixed[2] == 'O'){
+        hash_nonce = &((TPM_QUOTE_INFO*)&hash)->externalData;
+    }
+    memcpy(hash_nonce, nonce, sizeof(TPM_NONCE));
+    TSS_HHASH hHash;
+    result = Tspi_Context_CreateObject(vContext, TSS_OBJECT_TYPE_HASH, TSS_HASH_SHA1, &hHash);
+    if(TSS_SUCCESS != result){
+        return false;
+    }
+    result = Tspi_Hash_UpdateHashValue(hHash, hash_size, hash);
+    if(TSS_SUCCESS != result){
+        return false;
+    }
+    //verify signature
+    result = Tspi_Hash_VerifySignature(hHash, hPubAIK, valid.ulValidationDataLength,
+        valid.rgbValidationData);
+    if(TSS_SUCCESS != result){
+        return false;
+    }
+    return true;
 }
