@@ -99,7 +99,7 @@ bool createAIK(TSS_HCONTEXT *hContext, TSS_HTPM *hTPM, TSS_UUID uuid)
 	result = Tspi_GetPolicyObject(hSRK, TSS_POLICY_USAGE, &hSrkPolicy);
 	if (TSS_SUCCESS != result)
 		return false;
-	//no support for user defined passwords on the tpm, not a bug
+	//no support for user defined passwords, not a bug
 	BYTE srkSecret[] = TSS_WELL_KNOWN_SECRET;
 	result = Tspi_Policy_SetSecret(hSrkPolicy, TSS_SECRET_MODE_SHA1, sizeof(srkSecret), srkSecret);
 	if (TSS_SUCCESS != result)
@@ -184,12 +184,11 @@ bool bootstrapTPM(TSS_HCONTEXT *hContext, TSS_HTPM *hTPM, TSS_UUID **uuid)
 
 bool getUUID(TSS_HCONTEXT *hContext, TSS_HTPM *hTPM, TSS_UUID *uuid)
 {
-	//verify if aik, pubkey and uuid files exist
+	//verify if pubkey and uuid files exist
 	ifstream uuid_in("uuid");
-	ifstream aik_in("aik");
 	ifstream pubkey_in("pubkey");
-	if(!uuid_in || !aik_in || !pubkey_in){
-		//if any of these files doesn't exist recreate them all
+	if(!uuid_in || !pubkey_in){
+		//if any of these files doesn't exist recreate both
 		TSS_UUID *tmp = NULL;
 		if(!bootstrapTPM(hContext, hTPM, &tmp))
 			return false;
@@ -272,7 +271,7 @@ int main(int argc, char*argv[])
 		DBG("Write PCR", result);
 		exit(1);
 	}
-	//retrieve or generate uuid and aik
+	//retrieve or generate uuid
 	TSS_UUID uuid;
 	if(!getUUID(&hContext, &hTPM, &uuid)){
 		printf("Error getting UUID\n");

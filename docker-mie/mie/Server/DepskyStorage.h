@@ -35,7 +35,8 @@ class DepskyStorage: public BackendStorage{
     void detachThread();
 
   public:
-    DepskyStorage(int model, int cid = 1);
+    DepskyStorage(int model, int cid = 1, const std::vector<std::string>& ips = 
+        std::vector<std::string>());
     ~DepskyStorage();
     int read(const std::string& name, std::vector<char>& buffer);
     bool write(const std::string& name, const char* buffer, unsigned buffer_size);

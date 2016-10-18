@@ -8,7 +8,7 @@ using namespace std;
 
 static const char *depskyLibraries = "depsky.jar:lib/AmazonDriver.jar:lib/aws-java-sdk-1.11.18.jar:lib/commons-codec-1.9.jar:lib/commons-io-1.4.jar:lib/commons-logging-1.2.jar:lib/DepSkyDependencies.jar:lib/GoogleStorageDriver.jar:lib/httpclient-4.5.2.jar:lib/httpcore-4.4.4.jar:lib/jackson-annotations-2.6.0.jar:lib/jackson-core-2.6.6.jar:lib/jackson-databind-2.6.4.jar:lib/joda-time-2.2.jar:lib/JReedSolEC.jar:lib/microsoft-windowsazure-api-0.4.6.jar:lib/PVSS.jar:lib/RackSpaceDriver.jar:lib/WindowsAzureDriver.jar:lib/jets3t/jackson-core-asl-1.8.1.jar:lib/jets3t/jackson-mapper-asl-1.8.1.jar:lib/jets3t/java-xmlbuilder-0.4.jar:lib/jets3t/jets3t-0.9.1.jar:lib/jets3t/servlet-api";
 
-DepskyStorage::DepskyStorage(int model, int cid): id(cid)
+DepskyStorage::DepskyStorage(int model, int cid, const vector<string>& ips): id(cid)
 {
     ///start jvm
     JavaVMInitArgs vm_args;
@@ -40,7 +40,7 @@ DepskyStorage::DepskyStorage(int model, int cid): id(cid)
         fatal("DEPSKY: Java class LocalDepSkySClient not found.");
     }
     dscClass = (jclass)mainEnv->NewGlobalRef(dscClassTemp);
-    jmethodID constructor = mainEnv->GetMethodID(dscClass, "<init>", "(II)V");
+    jmethodID constructor = mainEnv->GetMethodID(dscClass, "<init>", "(II[Ljava/lang/String;)V");
     bool fallback = false;
     if(constructor == NULL){
         constructor = mainEnv->GetMethodID(dscClass, "<init>", "(IZ)V");
@@ -69,7 +69,22 @@ DepskyStorage::DepskyStorage(int model, int cid): id(cid)
         dsClient = mainEnv->NewGlobalRef(dsClientTemp);
     }
     else{
-        jobject dsClientTemp = mainEnv->NewObject(dscClass, constructor, id, model);
+        jclass java_string = mainEnv->FindClass("java/lang/String");
+        if(NULL == java_string){
+            fatal("DEPSKY: Java class String not found");
+        }
+        jobjectArray java_ips;
+        if(ips.empty()){
+            java_ips = mainEnv->NewObjectArray(0, java_string, NULL);
+        }
+        else{
+            java_ips = mainEnv->NewObjectArray(ips.size(), java_string, NULL);
+            for(size_t i = 0; i < ips.size(); i++){
+                jstring j_ip = mainEnv->NewStringUTF(ips[i].c_str());
+                mainEnv->SetObjectArrayElement(java_ips, i, j_ip);
+            }
+        }
+        jobject dsClientTemp = mainEnv->NewObject(dscClass, constructor, id, model, java_ips);
         if(dsClientTemp == NULL){
           fatal("DEPSKY: Error instantiating LocalDepSkySClient");
         }

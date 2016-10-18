@@ -69,7 +69,8 @@ class MIEServerMT : public Server {
     static void resetCache(int newsockfd);
     
 public:
-    MIEServerMT(int backend, bool cache = true, int model = 0);
+    MIEServerMT(int backend, bool cache = true, int model = 0, const std::vector<std::string>&
+        ips = std::vector<std::string>());
     ~MIEServerMT();
     
 };

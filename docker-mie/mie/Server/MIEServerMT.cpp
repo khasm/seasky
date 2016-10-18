@@ -34,10 +34,10 @@ atomic<unsigned> MIEServerMT::aRequests;
 mutex MIEServerMT::aTerminateLock;
 condition_variable MIEServerMT::aNoRequests;
 
-MIEServerMT::MIEServerMT(int backend, bool cache, int model)
+MIEServerMT::MIEServerMT(int backend, bool cache, int model, const vector<string>& ips)
 {
     readConfig();
-    storage = new Storage(backend, cache, model);
+    storage = new Storage(backend, cache, model, ips);
     mie = new MIE(storage);
     aResultsSize = getResultsSize();
     aTerminate = false;
@@ -159,13 +159,18 @@ void MIEServerMT::addDoc(int newsockfd)
 void MIEServerMT::index(int newsockfd)
 {
     char status = NO_ERRORS;
-    char buff[1];
-    socketReceive(newsockfd, buff, 1);
-    socketSend(newsockfd, &status, sizeof(char));
+    char buff[2];
+    socketReceive(newsockfd, buff, 2);
+    if('w' != buff[1]){
+        socketSend(newsockfd, &status, sizeof(char));
+    }
     if('f' == buff[0])
         mie->index(true);
     else
         mie->index();
+    if('w' == buff[1]){
+        socketSend(newsockfd, &status, sizeof(char));
+    }
     printf("finished indexing!\n");
 }
 

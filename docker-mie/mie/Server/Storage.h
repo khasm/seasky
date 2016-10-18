@@ -178,7 +178,8 @@ class Storage{
     void resetTimes();
     void resetCache();
 
-    Storage(int backend, bool cache = true, int model = 0, int cid = 1);
+    Storage(int backend, bool cache = true, int model = 0, const std::vector<std::string>&
+        ips = std::vector<std::string>(), int cid = 1);
     ~Storage();
 };
 

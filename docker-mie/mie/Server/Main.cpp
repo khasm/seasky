@@ -24,79 +24,61 @@ void signalHandler(int sig){
 int main(int argc, const char * argv[]) {
     signal(SIGINT, signalHandler);
     setvbuf(stdout, NULL, _IONBF, 0);
-    if(argc == 2){
-        if (strcasecmp(argv[1], "mie") == 0 || strcasecmp(argv[1], "mieMT") == 0){
-            printf("Incorrect number of arguments. Please give a server name, e.g. \"MIE\" or \"MIEMT\" and the backend, e.g. \"Depsky\" or \"Ramcloud\"\n");
-            return 1;
-        }
-        else{
-            printf("Server command not recognized! Available Servers: \"mieMT\"");
-            return 1;
-        }
-    }
-    if(argc >= 3){
+    if(argc >= 2){
+        int current_arg = 1;
         int backend = BACKEND_UNDEFINED;
         bool cache = true;
         int model = 0;
-        if(argc == 3){
-            if(strcasecmp(argv[2], "depsky") == 0)
+        vector<string> ips;
+        while(argc > current_arg){
+            if(strcasecmp(argv[current_arg], "depsky") == 0){
                 backend = BACKEND_DEPSKY;
-            else if(strcasecmp(argv[2], "ramcloud") == 0)
-                backend = BACKEND_RAMCLOUD;
-        }
-        else if(argc == 4){
-            if(strcasecmp(argv[2], "depsky") == 0 || strcasecmp(argv[3], "depsky") == 0)
-                backend = BACKEND_DEPSKY;
-            else if(strcasecmp(argv[2], "ramcloud") == 0 || strcasecmp(argv[2], "ramcloud") == 0)
-                backend = BACKEND_RAMCLOUD;
-
-            if(strcasecmp(argv[2], "nocache") == 0 || strcasecmp(argv[3], "nocache") == 0)
-                cache = false;
-            else if(strcasecmp(argv[2], "cache") == 0 || strcasecmp(argv[2], "cache") == 0){}
-
-            if(strcasecmp(argv[2], "testbench2") == 0 || strcasecmp(argv[3], "testbench2") == 0)
-                model = 1;
-            else if(strcasecmp(argv[2], "testbench3") == 0 || strcasecmp(argv[3], "testbench3") == 0)
-                model = 2;
-        }
-        else if(argc == 5){
-            if(strcasecmp(argv[2], "depsky") == 0 || strcasecmp(argv[3], "depsky") == 0 ||
-                strcasecmp(argv[4], "depsky") == 0)
-                backend = BACKEND_DEPSKY;
-            else if(strcasecmp(argv[2], "ramcloud") == 0 || strcasecmp(argv[2], "ramcloud") == 0 || 
-                strcasecmp(argv[4], "ramcloud") == 0)
-                backend = BACKEND_RAMCLOUD;
-
-            if(strcasecmp(argv[2], "nocache") == 0 || strcasecmp(argv[3], "nocache") == 0 ||
-                strcasecmp(argv[4], "nocache") == 0)
-                cache = false;
-            else if(strcasecmp(argv[2], "cache") == 0 || strcasecmp(argv[2], "cache") == 0 ||
-                strcasecmp(argv[4], "cache") == 0){}
-
-            if(strcasecmp(argv[2], "testbench2") == 0 || strcasecmp(argv[3], "testbench2") == 0 ||
-                strcasecmp(argv[4], "testbench2") == 0)
-                model = 1;
-            else if(strcasecmp(argv[2], "testbench3") == 0 || strcasecmp(argv[3], "testbench3") == 0 ||
-                strcasecmp(argv[4], "testbench3") == 0)
-                model = 2;
-        }
-        if (strcasecmp(argv[1], "mieMT") == 0){
-            if(backend == BACKEND_UNDEFINED){
-                printf("Unrecognized backend. Available Backends: \"Depsky\" and \"RamCloud\"\n");
-                return 1;
+                current_arg++;
             }
-            server = new MIEServerMT(backend, cache, model);
+            else if(strcasecmp(argv[current_arg], "ramcloud") == 0){
+                backend = BACKEND_RAMCLOUD;
+                current_arg++;
+            }
+            else if(strcasecmp(argv[current_arg], "nocache") == 0){
+                cache = false;
+                current_arg++;
+            }
+            else if(strcasecmp(argv[current_arg], "testbench2") == 0){
+                model = 1;
+                current_arg++;
+            }
+            else if(strcasecmp(argv[current_arg], "testbench3") == 0){
+                model = 2;
+                current_arg++;
+            }
+            else if(strcasecmp(argv[current_arg], "dsips") == 0){
+                if(current_arg + 1 >= argc){
+                    printf("Must provide at least one ip with dsips option: dsips <1|4>\
+                     <list of ips>\n");
+                    return 1;
+                }
+                int n_ips = stoi(argv[current_arg + 1]);
+                if(current_arg + 1 + n_ips >= argc){
+                    printf("Number of ips do not match\n");
+                    return 1;
+                }
+                for(int i = 0; i < n_ips; i++){
+                    ips.push_back(argv[current_arg + 2 + i]);
+                }
+                current_arg += 2 + n_ips;
+            }
         }
-        else{
-            printf("Server command not recognized! Available Servers: \"mieMT\"");
+        if(BACKEND_UNDEFINED == backend){
+            printf("Backend was not defined. It must be one of depsky or ramcloud\n");
             return 1;
         }
+        server = new MIEServerMT(backend, cache, model, ips);
+        server->startServer();
     }
     else{
-        printf("Incorrect number of arguments. Please give a server name, e.g. \"MIEMT\" and the backend, e.g. \"Depsky\" or \"Ramcloud\"\n");
+        printf("Usage: %s <backend> [nocache] [testbench2|testbench3] [dsips <1|4> <list of ips>\n", argv[0]);
         return 1;
     }
-    server->startServer();
     return 0;
 }
 

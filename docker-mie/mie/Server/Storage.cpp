@@ -20,7 +20,8 @@ using CACHE::MemcachedClient;
 using RC::RamCloudStorage;
 using DEPSKY::DepskyStorage;
 
-Storage::Storage(int backend, bool cache, int model, int cid): aUseCache(cache)
+Storage::Storage(int backend, bool cache, int model, const vector<string>& ips, int cid):
+    aUseCache(cache)
 {
 
     #ifdef MIE_DEBUG
@@ -32,7 +33,7 @@ Storage::Storage(int backend, bool cache, int model, int cid): aUseCache(cache)
     aPNRGWaitNSec = 500000000L;
     ///initialize storage client
     if(backend == BACKEND_DEPSKY){
-        aBackend = unique_ptr<BackendStorage>(new DepskyStorage(model, cid));
+        aBackend = unique_ptr<BackendStorage>(new DepskyStorage(model, cid, ips));
     }
     else if(backend == BACKEND_RAMCLOUD){
         aBackend = unique_ptr<BackendStorage>(new RamCloudStorage(model));

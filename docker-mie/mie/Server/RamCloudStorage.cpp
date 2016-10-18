@@ -488,7 +488,8 @@ bool RamCloudStorage::processFragments(const string& name, vector<char>* buffer)
     return success;
 }
 
-void RamCloudStorage::readRequest(void* threadData){
+void RamCloudStorage::readRequest(void* threadData)
+{
     //cout<<"thread: "<<threadData<<endl;
     RamCloudRequestData* data = (RamCloudRequestData*) threadData;
     string metadata_name(*data->name+".metadata");
