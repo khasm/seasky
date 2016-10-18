@@ -1,1 +1,5 @@
-MIELibrary/bin
+demo/docker-client/MIELibrary/bin
+docker-mie/jdk-8u91-linux-x64.tar.gz
+docker-mie/opencv*
+demo/docker-client/opencv*
+demo/docker-client/datasets
