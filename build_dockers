@@ -1,0 +1,169 @@
+#!/bin/bash
+
+function ramcloud {
+    cd docker-ramcloud
+    echo "Building ramcloud docker"
+    $DOCKER build -t ramcloud .
+    cd ..
+}
+
+function depsky {
+    cd docker-depsky
+    echo "Building depsky docker"
+    $DOCKER build -t depsky .
+    cd ..
+}
+
+function mw {
+    $DOCKER inspect ramcloud > /dev/null 2>&1
+    if [ "$?" != 0 ]; then
+        echo "Ramcloud docker not found. Build it?"
+        select yn in "yes" "no"; do
+            case $yn in
+                yes )
+                    ramcloud
+                    break
+                ;;
+                no )
+                    echo "Ramcloud docker is required to build the middleware docker. Skipping"
+                    return
+                ;;
+                * )
+                    echo "Select an option (1 or 2)"
+                ;;
+            esac
+        done
+    fi
+    cd docker-mie
+    stat opencv-3.0.0 > /dev/null 2>&1
+    if [ "$?" != 0 ]; then
+        echo "OpenCV 3.0.0 not found in docker-mie directory. Attempt to download it?"
+        select yn in "yes" "no"; do
+            case $yn in
+                yes )
+                    curl -L -o opencv-3.0.0.zip https://github.com/Itseez/opencv/archive/3.0.0.zip
+                    if [ "$?" != 0 ]; then
+                        echo "Download failed."
+                        return
+                    fi
+                    unzip opencv-3.0.0
+                    if [ "$?" != 0 ]; then
+                        echo "Extraction failed."
+                        return
+                    fi
+                    break
+                ;;
+                no )
+                    echo "OpenCV must be in the folder opencv-3.0.0 in docker-mie for building\
+                    the docker. Skipping."
+                    return
+                ;;
+                * )
+                    echo "Select an option (1 or 2)"
+                ;;
+            esac
+        done
+    fi
+    echo "Building middleware docker"
+    $DOCKER build -t mie .
+    cd ..
+}
+
+function client {
+    cd demo/docker-client
+    stat opencv-2.4.10 > /dev/null 2>&1
+    if [ "$?" != 0 ]; then
+        echo "OpenCV 2.4.10 not found in current directory. Attempt to download it?"
+        select yn in "yes" "no"; do
+            case $yn in
+                yes )
+                    curl -L -o opencv-2.4.10.zip \
+                    http://downloads.sourceforge.net/project/opencvlibrary/opencv-unix/2.4.10/opencv-2.4.10.zip
+                    if [ "$?" != 0 ]; then
+                        echo "Download failed."
+                        return
+                    fi
+                    unzip opencv-2.4.10
+                    if [ "$?" != 0 ]; then
+                        echo "Extraction failed."
+                        return
+                    fi
+                    break
+                ;;
+                no )
+                    echo "OpenCV must be in the folder opencv-2.4.10 in docker-mie for building\
+                    the docker. Skipping."
+                    return
+                ;;
+                * )
+                    echo "Select an option (1 or 2)"
+                ;;
+            esac
+        done
+    fi
+    echo "Building client demo docker"
+    $DOCKER build -t mie_client .
+    cd ../..
+}
+
+if [ "$1" == "" ] || [ "$1" == "-h" ] || [ "$1" == "--help" ]; then
+    echo "Usage: "$0" <docker>"
+    echo "docker might be:"
+    echo ""
+    echo "all:      build all dockers"
+    echo "ramcloud: build ramcloud docker"
+    echo "depsky:   build depsky storage docker"
+    echo "mw:       build middleware docker"
+    echo "client:   build client demo docker"
+    echo ""
+    echo "More than one docker might be selected at the same time. The ramcloud
+docker is required for the middleware and will be built if it doesn't
+exist"
+    exit
+fi
+
+DOCKER=$(which docker)
+if [ "$DOCKER" == "" ]; then
+    DOCKER=$DOCKER_EXE
+    if [ "$DOCKER" == "" ]; then
+        echo "Docker was not found in path. If it's installed then export the full
+path to DOCKER_EXE (export DOCKER_EXE=/path/to/docker/executable)"
+        exit
+    fi
+fi
+
+DO_RAMCLOUD=false
+DO_DEPSKY=false
+DO_MW=false
+DO_CLIENT=false
+
+while [ "$1" != "" ]; do
+    if [ "$1" == "all" ]; then
+        DO_RAMCLOUD=true
+        DO_DEPSKY=true
+        DO_MW=true
+        DO_CLIENT=true
+    elif [ "$1" == "ramcloud" ]; then
+        DO_RAMCLOUD=true
+    elif [ "$1" == "depsky" ]; then
+        DO_DEPSKY=true
+    elif [ "$1" == "mw" ]; then
+        DO_MW=true
+    elif [ "$1" == "client" ]; then
+        DO_CLIENT=true
+    fi
+    shift
+done
+
+if [ "$DO_RAMCLOUD" == true ]; then
+    ramcloud
+fi
+if [ "$DO_DEPSKY" == true ]; then
+    depsky
+fi
+if [ "$DO_MW" == true ]; then
+    mw
+fi
+if [ "$DO_CLIENT" == true ]; then
+    client
+fi
