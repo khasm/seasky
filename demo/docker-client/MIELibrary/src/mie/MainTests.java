@@ -254,7 +254,7 @@ public class MainTests {
 	
 	@SuppressWarnings("unused")
 	private static void testClientUnstructured() throws IOException, NoSuchAlgorithmException, NoSuchPaddingException{
-		MIE mie = new MIEClient();
+		MIE mie = new MIEClient(false);
 		int last = 999;
 		for(int i = 0; i <= last; i++){
 			String id = i+"";
@@ -263,7 +263,7 @@ public class MainTests {
 			mie.addUnstructredDoc(id, img, txt);
 			System.out.println("sent "+id);
 		}
-		mie.index(true);
+		mie.index(true, false);
 		for(int i = 0; i <= last; i++){
 			search(i, mie);
 		}
@@ -311,7 +311,7 @@ public class MainTests {
 	
 	@SuppressWarnings("unused")
 	private static void testClientMime() throws IOException, MessagingException, NoSuchAlgorithmException, NoSuchPaddingException{
-		MIE mie = new MIEClient();
+		MIE mie = new MIEClient(false);
 		int last = 999;
 		for(int i = 0; i <= last; i++){
 			String id = ""+i;
@@ -319,7 +319,7 @@ public class MainTests {
 			mie.addMime(id, mime);
 			System.out.println("sent "+id);
 		}
-		mie.index(true);
+		mie.index(true, false);
 		for(int i = 0; i <= last; i++){
 			searchMime(i, mie);
 		}
@@ -353,7 +353,7 @@ public class MainTests {
 	
 	@SuppressWarnings("unused")
 	private static void testClientDMime() throws IOException, MessagingException, NoSuchAlgorithmException, NoSuchPaddingException{
-		MIE mie = new MIEClient();
+		MIE mie = new MIEClient(false);
 		int last = 999;
 		for(int i = 0; i <= last; i++){
 			String id = ""+i;
@@ -361,7 +361,7 @@ public class MainTests {
 			mie.addMime(id, mime);
 			System.out.println("sent "+id);
 		}
-		mie.index(true);
+		mie.index(true, false);
 		for(int i = 0; i <= last; i++){
 			searchDMime(i, mie);
 		}

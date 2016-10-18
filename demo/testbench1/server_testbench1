@@ -1,0 +1,36 @@
+#!/bin/bash
+
+backend=""
+cache=true
+
+while [ "$1" != "" ]; do
+    if [ "$1" == "depsky" ] || [ "$1" == "ramcloud" ]; then
+        backend="$1"
+        shift
+    elif [ "$1" == "nocache" ]; then
+        cache=false
+        shift
+    else
+        echo "Unrecognized option: ""$1"
+        exit
+    fi
+done
+
+if [ "$backend" == "" ]; then
+    echo "Unrecognized backend"
+    exit
+fi
+
+if [ "$backend" == "depsky" ]; then
+    if [ "$cache" == true ]; then
+        docker run --rm --net=host --name=server mie ds-local mc mw depsky
+    else
+        docker run --rm --net=host --name=server mie ds-local mw depsky nocache
+    fi
+else
+    if [ "$cache" == true ]; then
+        docker run --rm --net=host --name=server mie zk rc 0 mc mw ramcloud
+    else
+        docker run --rm --net=host --name=server mie zk rc 0 mw ramcloud nocache
+    fi
+fi

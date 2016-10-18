@@ -34,9 +34,9 @@ import mie.crypto.CBIRSParameterSpec;
 
 public class MIECryptoModule implements MIECrypto {
 	
-	private static final String IMG_KEY_FILE = "/home/johndoe/MIE/Data/Client/MIE/cbird.key";
-	private static final String TXT_KEY_FILE = "/home/johndoe/MIE/Data/Client/MIE/cbirs.key";
-	private static final String IV_FILE = "/home/johndoe/MIE/Data/Client/MIE/iv";
+	private static final String IMG_KEY_FILE = "keys/cbird.key";
+	private static final String TXT_KEY_FILE = "keys/cbirs.key";
+	private static final String IV_FILE = "keys/iv";
 	
 	private static final String CBIRD_CIPHER = "CBIRDWithSymmetricCipher";
 	private static final String CBIRS_CIPHER = "CBIRSWithSymmetricCipher";
@@ -124,8 +124,8 @@ public class MIECryptoModule implements MIECrypto {
 	}
 
 	/**
-	 * Necessário para reconstruir as palavras do resultado do cbir para indexação
-	 * Não incluido no resultado porque é um parâmetro da cifra
+	 * Necessario para reconstruir as palavras do resultado do cbir para indexacao
+	 * Nao incluido no resultado porque e um parametro da cifra
 	 */
 	@Override
 	public int getKeywordSize() {
@@ -140,8 +140,8 @@ public class MIECryptoModule implements MIECrypto {
 	}
 	
 	/**
-	 * Necessário para reconstruir a matrix de floats resultante do cbir para a indexação
-	 * Não incluido no resultado porque é um parâmetro da cifra
+	 * Necessario para reconstruir a matrix de floats resultante do cbir para a indexacao
+	 * Nao incluido no resultado porque e um parametro da cifra
 	 */
 	@Override
 	public int getImgFeatureSize() {

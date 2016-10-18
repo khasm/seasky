@@ -33,23 +33,23 @@ public class MIEClient implements MIE {
 	private boolean aUseCache;
 	private boolean aVerified; //not actually used yet, proof of concept
 	
-	public MIEClient() throws NoSuchAlgorithmException, NoSuchPaddingException, IOException{
-		this(DEFAULT_SERVER_HOST, DEFAULT_SERVER_PORT);
+	public MIEClient(boolean useCache) throws NoSuchAlgorithmException, NoSuchPaddingException, IOException{
+		this(DEFAULT_SERVER_HOST, DEFAULT_SERVER_PORT, useCache);
 	}
 	
-	public MIEClient(String host, int port) throws NoSuchAlgorithmException, NoSuchPaddingException, IOException{
+	public MIEClient(String host, int port, boolean useCache) throws NoSuchAlgorithmException, NoSuchPaddingException, IOException{
 		server = new ServerConnectorModule(host, port);
 		crypto = new MIECryptoModule();
 		cache = new CacheModule();
-		aUseCache = false;
-		System.out.println(aUseCache);
+		aUseCache = useCache;
+		System.out.println("client cache: "+aUseCache);
 		TpmVerifier tpm = new TpmVerifier();
 		aVerified = tpm.verify(host);
 		System.out.println("verified: "+aVerified);
 	}
 	
-	public MIEClient(String host) throws NoSuchAlgorithmException, NoSuchPaddingException, IOException{
-		this(host, DEFAULT_SERVER_PORT);
+	public MIEClient(String host, boolean useCache) throws NoSuchAlgorithmException, NoSuchPaddingException, IOException{
+		this(host, DEFAULT_SERVER_PORT, useCache);
 	}
 	
 	@Override
@@ -220,9 +220,9 @@ public class MIEClient implements MIE {
 	}
 
 	@Override
-	public boolean index(boolean train) {
+	public boolean index(boolean train, boolean wait) {
 		long start = System.nanoTime();
-		boolean ret = server.index(train);
+		boolean ret = server.index(train, wait);
 		long time = System.nanoTime()-start;
 		Main.networkTime += time;
 		return ret;

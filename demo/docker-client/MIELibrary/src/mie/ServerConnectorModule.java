@@ -207,13 +207,17 @@ public class ServerConnectorModule implements ServerConnector {
 	}
 
 	@Override
-	public boolean index(boolean train) {
-		byte[] buffer = new byte[2];
+	public boolean index(boolean train, boolean wait) {
+		byte[] buffer = new byte[3];
 		buffer[0] = 'i';
 		if(train)
 			buffer[1] = 'f';
 		else
 			buffer[1] = 0;
+		if(wait)
+			buffer[2] = 'w';
+		else
+			buffer[2] = 0;
 		return connectAndSend(buffer);
 	}
 

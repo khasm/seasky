@@ -1,0 +1,211 @@
+#!/bin/bash
+server_ip=127.0.0.1
+
+function add {
+    date
+    client_times="$(java -Djava.library.path=/usr/local/share/OpenCV/java -cp \
+        bin:/usr/local/share/OpenCV/java/opencv-2410.jar mie.Main ip $server_ip path \
+        /datasets add 0 999 print | grep 'total_time\|verified:\|client cache
+        \|Client cache hit ratio:\|CBIR encryption:\|Symmetric encryption:\|Misc:')"
+    # let the server handle all the requests, since the server is multithreaded a print
+    # command right after the last upload might not account for the upload time of that
+    # file as the server handles the print while still doing the upload. In the testbenchs
+    # performed, even on testbench 3, this value was around 1-2 seconds, so 10 seconds wait
+    # *should* be more than enough. Not required on other operations since the client is
+    # single threaded and in other cases the client waits for answers (special case of index
+    # handled in the client/server request)
+    sleep 10
+    server_times="$(java -Djava.library.path=/usr/local/share/OpenCV/java -cp \
+        bin:/usr/local/share/OpenCV/java/opencv-2410.jar mie.Main ip $server_ip \
+        print | grep -v 'total_time\|verified:\|client cache\|Client cache hit ratio:
+        \|CBIR encryption:\|Symmetric encryption:\|Misc:')"
+    echo "/**********Server times************/"
+    echo "$server_times"
+    echo "/**********Client times************/"
+    echo "$client_times"
+}
+
+function index {
+    date
+    if [ "$1" == "" ]; then
+        client_times="$(java -Djava.library.path=/usr/local/share/OpenCV/java -cp \
+            bin:/usr/local/share/OpenCV/java/opencv-2410.jar mie.Main ip $server_ip index \
+            print | grep 'total_time\|verified:\|client cache\|Client cache hit ratio:
+            \|CBIR encryption:\|Symmetric encryption:\|Misc:')"
+        echo "/**********Client times************/"
+        echo "$client_times"
+    else
+        echo "WARNING: using wait flag on the index operation, client times will not represent the
+actual values since the client doesn't need to wait for this operation to finish"
+        output="$(java -Djava.library.path=/usr/local/share/OpenCV/java -cp \
+            bin:/usr/local/share/OpenCV/java/opencv-2410.jar mie.Main ip $server_ip index w \
+            print)"
+        echo "/**********Server times************/"
+        echo "$output" | grep -v 'total_time\|verified:\|client cache\|Client cache hit ratio:
+            \|CBIR encryption:\|Symmetric encryption:\|Misc:'
+        echo "/**********Client times************/"
+        echo "$output" | grep 'total_time\|verified:\|client cache\|Client cache hit ratio:
+            \|CBIR encryption:\|Symmetric encryption:\|Misc:'
+    fi
+}
+
+function print {
+    date
+    echo "/**********Server times************/"
+    java -Djava.library.path=/usr/local/share/OpenCV/java -cp \
+    bin:/usr/local/share/OpenCV/java/opencv-2410.jar mie.Main ip $server_ip print \
+    | grep 'total_time\|verified:\|client cache\|Client cache hit ratio:
+        \|CBIR encryption:\|Symmetric encryption:\|Misc:'
+}
+
+function get {
+    date
+	if [ "$1" == "cache_client80" ]; then
+		output="$(java -Djava.library.path=/usr/local/share/OpenCV/java -cp \
+		  bin:/usr/local/share/OpenCV/java/opencv-2410.jar mie.Main path /datasets \
+          cache ip $server_ip get 0 999 cache80 print)"
+    elif [ "$1" == "cache_server80" ]; then
+        output="$(java -Djava.library.path=/usr/local/share/OpenCV/java -cp \
+          bin:/usr/local/share/OpenCV/java/opencv-2410.jar mie.Main path /datasets \
+          ip $server_ip get 0 999 cache80 print)"
+    elif [ "$1" == "cache_client100" ]; then
+        output="$(java -Djava.library.path=/usr/local/share/OpenCV/java -cp \
+          bin:/usr/local/share/OpenCV/java/opencv-2410.jar mie.Main path /datasets \
+          cache ip $server_ip get 0 999 cache_client100 print)"
+    elif [ "$1" == "cache_server100" ]; then
+        output="$(java -Djava.library.path=/usr/local/share/OpenCV/java -cp \
+          bin:/usr/local/share/OpenCV/java/opencv-2410.jar mie.Main path /datasets \
+          ip $server_ip get 0 999 cache_server100 print)"
+    elif [ "$1" == "double_cache" ]; then
+        output="$(java -Djava.library.path=/usr/local/share/OpenCV/java -cp \
+          bin:/usr/local/share/OpenCV/java/opencv-2410.jar mie.Main path /datasets \
+          cache ip $server_ip get 0 999 double_cache print)"
+    else
+        output="$(java -Djava.library.path=/usr/local/share/OpenCV/java -cp \
+          bin:/usr/local/share/OpenCV/java/opencv-2410.jar mie.Main path /datasets \
+          ip $server_ip get 0 999 print)"
+    fi
+    echo "/**********Server times************/"
+    echo "$output" | grep -v 'total_time\|verified:\|client cache\|Client cache hit ratio:
+        \|CBIR encryption:\|Symmetric encryption:\|Misc:'
+    echo "/**********Client times************/"
+    echo "$output" | grep 'total_time\|verified:\|client cache\|Client cache hit ratio:
+        \|CBIR encryption:\|Symmetric encryption:\|Misc:'
+}
+
+function search {
+    date
+    output="$(java -Djava.library.path=/usr/local/share/OpenCV/java -cp \
+        bin:/usr/local/share/OpenCV/java/opencv-2410.jar mie.Main ip $server_ip \
+        path /datasets search 0 999 print)"
+    echo "/**********Server times************/"
+    echo "$output" | grep -v 'total_time\|verified:\|client cache\|Client cache hit ratio:
+        \|CBIR encryption:\|Symmetric encryption:\|Misc:'
+    echo "/**********Client times************/"
+    echo "$output" | grep 'total_time\|verified:\|client cache\|Client cache hit ratio:
+        \|CBIR encryption:\|Symmetric encryption:\|Misc:'
+}
+
+function clear_times {
+    java -Djava.library.path=/usr/local/share/OpenCV/java -cp \
+        bin:/usr/local/share/OpenCV/java/opencv-2410.jar mie.Main ip $server_ip \
+        clear > /dev/null
+}
+
+if [ "$1" == "--help" ] || [ "$1" == "" ] || [ "$1" == "-h" ]; then
+    echo "Usage: docker run mie_client [ip <address>] <command1> [<command2> ...]"
+    echo "Commands:"
+    echo "add:                      Performs an upload test of 1000 images and text"
+    echo "index:                    Performs an index test"
+    echo "search:                   Performs a search test"
+    echo "get [cache_mode]:         Performs a download test of 1000 images"
+    echo "print:                    Prints measurements of the server"
+    echo "clear:                    Clears measured times"
+    echo "full [cache_mode]:        Performs add, index, search and get commands"
+    echo ""
+    echo "cache_mode is one of cache_client80, cache_server100, cache_client100, cache_server100
+or double_cache."
+    echo "If cache_mode is ommited a sequence of files, from id 0 to 999, will be downloaded.
+This will ignore the cache, even if activated since all files will be different.
+With cache80 a sequence of files will be generated so that 80% of the requests are
+repeated. This should be used with a single cache on either client or server.
+cache_client100 and cache_server100 will preload the files in the cache before the
+measurements. There will be extra network traffic for cache_server100. Double cache
+will preload files in the server cache so that both the client and server cache
+have approximately 80% hit rate".
+    exit
+fi
+
+if [ "$1" == "ip" ]; then
+    server_ip=$1
+    shift 2
+fi
+
+while [ "$1" != "" ]; do
+    if [ "$1" == "add" ]; then
+        add
+        shift
+    elif [ "$1" == "index" ]; then
+        if [ "$2" == "w" ] || [ "$2" == "wait" ]; then
+            index w
+            shift 2
+        else
+            index
+            shift
+        fi
+    elif [ "$1" == "print" ]; then
+        print
+        shift
+    elif [ "$1" == "search" ]; then
+        search
+        shift
+    elif [ "$1" == "get" ]; then
+        if [ "$2" == "cache80" ] || [ "$2" == "cache_client100" ] || \
+            [ "$2" == "cache_server100" ] || [ "$2" == "double_cache" ]; then
+            get $2
+            shift 2
+        else
+            get
+            shift
+        fi
+    elif [ "$1" == "clear" ]; then
+        clear_times
+        shift
+    elif [ "$1" == "full" ]; then
+        if [ "$2" == "cache_client80" ] || [ "$2" == "cache_client80" ] || \
+            [ "$2" == "cache_client100" ] || [ "$2" == "cache_server80" ] || \
+            [ "$2" == "double_cache" ]; then
+            echo "/************Uploading*************/"
+            clear_times
+            add
+            echo "/*************Indexing*************/"
+            clear_times
+            index w
+            echo "/************Searching*************/"
+            clear_times
+            search
+            echo "/***********Downloading************/"
+            clear_times
+            get $2
+            shift 2
+        else
+            echo "/************Uploading*************/"
+            clear_times
+            add
+            echo "/*************Indexing*************/"
+            clear_times
+            index w
+            echo "/************Searching*************/"
+            clear_times
+            search
+            echo "/***********Downloading************/"
+            clear_times
+            get
+            shift
+        fi
+    else
+        echo "Unrecognized option: "$1
+        exit
+    fi
+done
+

@@ -1,0 +1,8 @@
+#!/bin/bash
+
+n_providers=$(cat /usr/lib/jvm/java-8-openjdk-amd64/jre/lib/security/java.security | 
+	grep -E security.provider.\[0-9\]\+ | grep -v \# | wc -l)
+n_providers=$((n_providers+1))
+echo "security.provider."$n_providers"=org.bouncycastle.jce.provider.BouncyCastleProvider" >> /usr/lib/jvm/java-8-openjdk-amd64/jre/lib/security/java.security
+n_providers=$((n_providers+1))
+echo "security.provider."$n_providers"=mie.crypto.MIEProvider" >> /usr/lib/jvm/java-8-openjdk-amd64/jre/lib/security/java.security

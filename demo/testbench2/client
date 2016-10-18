@@ -1,0 +1,6 @@
+#!/bin/bash
+
+ip="$1"
+cache_mode="$2"
+
+docker run --rm --net=host --name=client mie_client ip "$ip" full "$cache_mode"

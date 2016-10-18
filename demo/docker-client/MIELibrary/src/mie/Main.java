@@ -36,6 +36,7 @@ public class Main {
 	static long encryptionTime = 0;
 	static long featureExtractionTime = 0;
 	static long totalTime = 0;
+	static String datasetPath = ".";
 	
 	public static void main(String[] args) throws IOException, MessagingException,
 		NoSuchAlgorithmException, NoSuchPaddingException, InvalidKeyException, IllegalBlockSizeException,
@@ -49,10 +50,36 @@ public class Main {
 			}
 			MIE mie;
 			int nextArg = 0;
-			if(args[0].equals("ip")){
+			int ip_index = -1;
+			int path_index = -1;
+			boolean useCache = false;
+			try{
+				if(args[0].equalsIgnoreCase("ip"))
+					ip_index = 0;
+				else if(args[1].equalsIgnoreCase("ip"))
+					ip_index = 1;
+				else if(args[2].equalsIgnoreCase("ip"))
+					ip_index = 2;
+				else if(args[3].equalsIgnoreCase("ip"))
+					ip_index = 3;
+				if(args[0].equalsIgnoreCase("path"))
+					path_index = 0;
+				else if(args[1].equalsIgnoreCase("path"))
+					path_index = 1;
+				else if(args[2].equalsIgnoreCase("path"))
+					path_index = 2;
+				else if(args[3].equalsIgnoreCase("path"))
+					path_index = 3;
+				if(args[0].equalsIgnoreCase("cache") || args[2].equalsIgnoreCase("cache")||
+					args[4].equalsIgnoreCase("cache")){
+					useCache = true;
+					nextArg++;
+				}
+			} catch (ArrayIndexOutOfBoundsException e){}
+			if(-1 != ip_index){
 				try{
-					mie = new MIEClient(args[1]);
-					nextArg = 2;
+					mie = new MIEClient(args[ip_index+1], useCache);
+					nextArg += 2;
 				} 
 				catch (ArrayIndexOutOfBoundsException e){
 					mie = null;
@@ -60,7 +87,17 @@ public class Main {
 				}
 			}
 			else{
-				mie = new MIEClient();
+				mie = new MIEClient(useCache);
+			}
+			if(-1 != path_index){
+				try{
+					datasetPath = args[path_index+1];
+					nextArg += 2;
+				} 
+				catch (ArrayIndexOutOfBoundsException e){
+					mie = null;
+					printHelp();
+				}
 			}
 			while(nextArg < args.length){
 				if(args[nextArg].startsWith("add")){
@@ -94,8 +131,17 @@ public class Main {
 					}
 				}
 				else if(args[nextArg].equalsIgnoreCase("index")){
+					boolean wait = false;
+					try{
+						if(args[nextArg+1].equalsIgnoreCase("w") || 
+						   args[nextArg+1].equalsIgnoreCase("wait")){
+							wait = true;
+							nextArg++;
+						}
+					}
+					catch(ArrayIndexOutOfBoundsException e){}
 					long start = System.nanoTime();
-					mie.index(true);
+					mie.index(true, wait);
 					totalTime = System.nanoTime()-start;
 					nextArg++;
 				}
@@ -143,44 +189,82 @@ public class Main {
 							last = Integer.parseInt(args[nextArg+2]);
 						} catch (NumberFormatException | ArrayIndexOutOfBoundsException e){}
 						int[] ids;
+						Set<Integer> added = new HashSet<Integer>();
+						Cache c = ((MIEClient)mie).cache;
+						int cache_mode = 0;
 						if(first != last){
-							/*ids = getIds(first, last);
-							Set<Integer> added = new HashSet<Integer>();
-							Cache c = ((MIEClient)mie).cache;
-							int size = 0;
-							for(int i: ids){
-								if(!added.contains(i)){
-									/*byte[] img = readImg(i);
-									byte[] txt = readTxt(i);
-									ByteBuffer buffer = ByteBuffer.allocate(4+img.length+txt.length);
-									buffer.putInt(img.length);
-									buffer.put(img);
-									buffer.put(txt);
-									c.addToCache(i+"", buffer.array());
-									added.add(i);
-									//size += img.length + txt.length;
+							try{
+								if(args[nextArg+3].equalsIgnoreCase("cache80")){
+									cache_mode = 1;
 								}
-							}
-							//System.out.println("Cached: "+size);
-							/*int n = added.size();
-							double nc = n/10.0*8.0;
-							Integer[] intg = added.toArray(new Integer[0]);
-							for(int i = 0; i < nc; i++){
-								mie.getUnstructuredDoc(intg[i]+"");
-							}
-							mie.clearServerTimes();
-							networkTime = 0;
-							TimeSpec.reset();
-							Map<String,String> stats = mie.printServerStatistics();
-							for(String key: stats.keySet()){
-								System.out.println(key+": "+stats.get(key));
-							}
-							c.clear();
-							c.resetStats();
-							System.out.println("Added "+nc+" of "+n+" to server cache");*/
-							ids = new int[last-first+1];
-							for(int i = first; i <=last; i++){
-								ids[i-first] = i;
+								else if(args[nextArg+3].equalsIgnoreCase("cache_client100")){
+									cache_mode = 2;
+								}
+								else if(args[nextArg+3].equalsIgnoreCase("cache_server100")){
+									cache_mode = 3;
+								}
+								else if(args[nextArg+3].equalsIgnoreCase("double_cache")){
+									cache_mode = 4;
+								}
+							}catch (ArrayIndexOutOfBoundsException e){}
+							switch(cache_mode){
+								case(1):
+									ids = getIds(first, last);
+									break;
+								case(2):
+									ids = getIds(first, last);
+									for(int i: ids){
+										if(!added.contains(i)){
+											byte[] img = readImg(i);
+											byte[] txt = readTxt(i);
+											ByteBuffer buffer = ByteBuffer.allocate(4+img.length +
+												txt.length);
+											buffer.putInt(img.length);
+											buffer.put(img);
+											buffer.put(txt);
+											c.addToCache(i+"", buffer.array());
+											added.add(i);
+										}
+									}
+									break;
+								case(3):
+									ids = getIds(first, last);
+									for(int i: ids){
+										if(!added.contains(i)){
+											mie.getUnstructuredDoc(i+"", true);
+											added.add(i);
+										}
+									}
+									mie.clearServerTimes();
+									networkTime = 0;
+									TimeSpec.reset();
+									c.clear();
+									c.resetStats();
+									break;
+								case(4):
+									ids = getIds(first, last);
+									for(int i: ids){
+										if(!added.contains(i)){
+											added.add(i);
+										}
+									}
+									int n = added.size();
+									double nc = n/10.0*8.0;
+									Integer[] intg = added.toArray(new Integer[0]);
+									for(int i = 0; i < nc; i++){
+										mie.getUnstructuredDoc(intg[i]+"", true);
+									}
+									mie.clearServerTimes();
+									networkTime = 0;
+									TimeSpec.reset();
+									c.clear();
+									c.resetStats();
+									break;
+								default:
+									ids = new int[last-first+1];
+									for(int i = first; i <=last; i++){
+										ids[i-first] = i;
+									}
 							}
 						}
 						else{
@@ -202,6 +286,8 @@ public class Main {
 							nextArg+=2;
 						else
 							nextArg+=3;
+						if(0 != cache_mode)
+							nextArg++;
 					}
 					catch (NumberFormatException | ArrayIndexOutOfBoundsException e){
 						printHelp();
@@ -355,7 +441,6 @@ public class Main {
 			byte[] img = readImg(i);
 			byte[] txt = readTxt(i);
 			List<SearchResult> res = mie.searchUnstructuredDocument(img, txt, 0);
-			System.out.println("#results: "+res.size());
 			total++;
 			if(!res.isEmpty()){
 				SearchResult r = res.get(0);
@@ -492,7 +577,7 @@ public class Main {
 	}
 	
 	private static byte[] readImg(int id) throws IOException{
-		FileInputStream in = new FileInputStream("/home/johndoe/MIE/Datasets/flickr_imgs/im"+id+".jpg");
+		FileInputStream in = new FileInputStream(datasetPath + "/flickr_imgs/im"+id+".jpg");
 		byte[] buffer = new byte[in.available()];
 		in.read(buffer);
 		in.close();
@@ -500,7 +585,7 @@ public class Main {
 	}
 	
 	private static byte[] readTxt(int id) throws IOException{
-		FileInputStream in = new FileInputStream("/home/johndoe/MIE/Datasets/flickr_tags/tags"+id+".txt");
+		FileInputStream in = new FileInputStream(datasetPath + "/flickr_tags/tags"+id+".txt");
 		byte[] buffer = new byte[in.available()];
 		in.read(buffer);
 		in.close();
@@ -518,7 +603,7 @@ public class Main {
 	}
 
 	private static byte[] readMime(int id) throws IOException{
-		FileInputStream in = new FileInputStream("/home/johndoe/MIE/Datasets/flickr_mime/"+id+".mime");
+		FileInputStream in = new FileInputStream(datasetPath + "/flickr_mime/"+id+".mime");
 		byte[] buffer = new byte[in.available()];
 		in.read(buffer);
 		in.close();
@@ -526,7 +611,7 @@ public class Main {
 	}
 	
 	private static byte[] readDMime(int id) throws IOException{
-		FileInputStream in = new FileInputStream("/home/johndoe/MIE/Datasets/flickr_dmime/"+id+".mime");
+		FileInputStream in = new FileInputStream(datasetPath + "/flickr_dmime/"+id+".mime");
 		byte[] buffer = new byte[in.available()];
 		in.read(buffer);
 		in.close();

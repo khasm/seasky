@@ -5,7 +5,7 @@ import java.util.Map;
 
 public interface ServerConnector {
 	
-	public boolean index(boolean train);
+	public boolean index(boolean train, boolean wait);
 	
 	public boolean sendUnstructredDoc(String name, byte[] img_cipher_text, byte[] txt_cipher_text);
 	
