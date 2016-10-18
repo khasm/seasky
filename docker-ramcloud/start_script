@@ -14,14 +14,14 @@ cluster_id=0
 if [ "$1" == "--help" ] || [ "$1" == "" ] || [ "$1" == "-h" ]; then
 	echo "Usage: docker run ramcloud <options>"
 	echo "Options:"
-	echo "zk:						Start zookeeper server"
-	echo "rcc <cluster_id>:			Start ramcloud coordinator"
-	echo "rcs <cluster_id>:			Start ramcloud storage server"
-	echo "rc <cluster_id>:			Start ramcloud coordinator and storage server"
-	echo "rczk <ip address:port>:	Define zookeeper server address and port for ramcloud servers to connect to"
-	echo "rcip <ip address>:		Define ip address for ramcloud servers to listen on"
-	echo "rccp <port>:				Define port for ramcloud coordinator"
-	echo "rcsp <port>:				Define port for ramcloud server"
+	echo "zk:                      Start zookeeper server"
+	echo "rcc <cluster_id>:        Start ramcloud coordinator"
+	echo "rcs <cluster_id>:        Start ramcloud storage server"
+	echo "rc <cluster_id>:         Start ramcloud coordinator and storage server"
+	echo "rczk <ip address:port>:  Define zookeeper server address and port for ramcloud servers to connect to"
+	echo "rcip <ip address>:       Define ip address for ramcloud servers to listen on"
+	echo "rccp <port>:             Define port for ramcloud coordinator"
+	echo "rcsp <port>:             Define port for ramcloud server"
 fi
 
 #parse command line arguments
@@ -62,13 +62,16 @@ if [ "$zookeeper" = true ]; then
 	echo "Executing zookeeper in background"
 fi
 if [ "$coordinator" = true ]; then
-	cd /RAMCloud
-	/RAMCloud/obj.master/coordinator -C tcp:host=$ramcloud_ip,port=$coordinator_port -x zk:$zk_ip --clusterName test-cluster$cluster_id &
-	echo "Executing ramcloud coordinator in background"
-	sleep 10
+    cd /RAMCloud
+    /RAMCloud/obj/coordinator -C tcp:host=$ramcloud_ip,port=$coordinator_port -x \
+        zk:$zk_ip --clusterName test-cluster$cluster_id &
+    echo "Executing ramcloud coordinator in background"
+    sleep 10
 fi
 if [ "$ramcloud_storage" = true ]; then
-	cd /RAMCloud
-	/RAMCloud/obj.master/server -L tcp:host=$ramcloud_ip,port=$ramcloud_storage_port -x zk:$zk_ip --totalMasterMemory 1024 -f backup.ramcloud --segmentFrames 256 -r 0 --clusterName test-cluster$cluster_id
-	sleep 10
+    cd /RAMCloud
+    /RAMCloud/obj/server -L tcp:host=$ramcloud_ip,port=$ramcloud_storage_port -x \
+        zk:$zk_ip --totalMasterMemory 1024 -f backup.ramcloud --segmentFrames 256 -r 0 \
+        --clusterName test-cluster$cluster_id
+    sleep 10
 fi
