@@ -26,7 +26,7 @@ To restart, if the --rm flag is ommited, the command is:
 
 docker start DepSky
 
-To remove the container if the --rm flag is ommited:
+The flag -a might be added to prevent the docker from going into the background. To remove the container if the --rm flag is ommited:
 
 docker rm DepSky
 
