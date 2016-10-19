@@ -15,12 +15,17 @@ WORKDIR "/MIECryptoProvider"
 RUN javac -d bin -cp /usr/local/share/OpenCV/java/opencv-2410.jar @java-files && cd src && make && cd ../bin && jar cvf MIEProvider.jar @class-files && cp MIEProvider.jar /usr/lib/jvm/java-8-openjdk-amd64/jre/lib/ext/
 COPY ./update_java.security ./update_java.security
 RUN chmod +x ./update_java.security && ./update_java.security
+COPY ./fix-dataset /fix-dataset
 COPY ./datasets /datasets
+RUN chmod +x /fix-dataset && /fix-dataset
 COPY ./MIELibrary /MIELibrary
 WORKDIR "/MIELibrary"
 RUN cd src && make && cd .. && javac -d bin -cp /usr/local/share/OpenCV/java/opencv-2410.jar src/mie/*.java
 COPY ./keys /MIELibrary/keys
 COPY ./run_tests /MIELibrary/run_tests
-RUN chmod +x ./run_tests 
+RUN chmod +x ./run_tests
+COPY ./uuid /MIELibrary/
+COPY ./pubkey /MIELibrary/
+COPY ./hash /MIELibrary/
 ENTRYPOINT ["/MIELibrary/run_tests"]
 

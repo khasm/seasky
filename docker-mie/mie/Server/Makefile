@@ -21,9 +21,9 @@ TpmClient.o: TpmClient.cpp
 TpmMain.o: TpmMain.cpp
 	/usr/bin/g++-6 -std=c++11 -Wall -g -c TpmMain.cpp
 TpmLoader: TpmLoader.o TpmCommon.o
-	/usr/bin/g++-6 -o tpm_loader TpmLoader.o TpmCommon.o -ltspi
+	g++ -o tpm_loader TpmLoader.o TpmCommon.o -ltspi
 TpmLoader.o: TpmLoader.cpp
-	/usr/bin/g++-6 -std=c++17 -Wall -g -c TpmLoader.cpp
+	g++ -std=c++11 -Wall -g -c TpmLoader.cpp
 TpmVerifier: TpmVerifier.o TpmTest.o TpmCommon.o
 	/usr/bin/g++-6 -o tpm_verifier TpmVerifier.o TpmTest.o TpmCommon.o -ltspi
 TpmTest.o: TpmTest.cpp
@@ -53,7 +53,7 @@ RamCloudClient.o: RamCloudClient.cpp
 Mie.o: Mie.cpp
 	/usr/bin/g++-6 -std=c++17 -Wall -I /usr/local/opencv/opencv3.1/include -c Mie.cpp
 TpmCommon.o: TpmCommon.cpp
-	/usr/bin/g++-6 -std=c++17 -Wall -g -c TpmCommon.cpp
+	g++ -std=c++11 -Wall -g -c TpmCommon.cpp
 TpmVerifier.o: TpmVerifier.cpp
 	/usr/bin/g++-6 -std=c++17 -Wall -g -c TpmVerifier.cpp
 clean :

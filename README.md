@@ -102,11 +102,11 @@ The "clear" between "add" and "index" will clear the times affected by the uploa
 
 docker-ramcloud contains the ramcloud coordinator and storage servers. each storage cloud must be running one of these dockers
 
-Some scripts in the demo folder provide shortcuts to start the dockers in the settings used for the tests.
+Some scripts in the demo folder provide shortcuts to start the dockers in the settings used for the tests. The "uuid", "pubkey" and "hash" files are related to the TPM and must be replaced by the correct ones (described in the next section) before building the docker for the TPM verification to work.
 
-//*****************TPM***********************//
+# TPM
 
-TPM verification is implemented in the client side using C++. The java client access these functions by using JNI. For the verification to succeed the files "uuid", "pubkey" and "hash" must be in the working directory of the client. These files are generated automatically by running the tpm_loader executable on the middleware server. They need to be manually copied to the client in a trusted environment (the tpm_loader itself its only a simulation of what the TPM should actually do and would not be executed in a real use case, the generation of these files is just for convenience as they could be created using the tpm_quote_tools package). On the server side only the tpm emulador and trousers need to be running for the verification to be performed. Trousers needs to be configured to accept remote connections and to allow the quote and loadkey operations remotely. This is done by uncommenting the lines
+TPM verification is implemented in the client side using C++. The java client access these functions by using JNI. For the verification to succeed the files "uuid", "pubkey" and "hash" must be in the working directory of the client. These files are generated automatically by running the tpm_loader executable on the middleware server. They need to be manually copied to the client in a trusted environment (the tpm_loader itself its only a simulation of what the TPM should actually do and would not be executed in a real use case, the generation of these files is also just for convenience as they could be created using the tpm_quote_tools package). On the server side only the tpm emulador and trousers need to be running for the verification to be performed. Trousers needs to be configured to accept remote connections and to allow the quote and loadkey operations remotely. This is done by uncommenting the lines
 
 \# port = 30003
 

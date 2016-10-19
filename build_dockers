@@ -2,6 +2,10 @@
 
 function ramcloud {
     cd docker-ramcloud
+    if [ "$?" != 0 ]; then
+        echo "RamCloud docker not found or not a directory. Skipping."
+        return
+    fi
     echo "Building ramcloud docker"
     $DOCKER build -t ramcloud .
     cd ..
@@ -9,12 +13,22 @@ function ramcloud {
 
 function depsky {
     cd docker-depsky
+    if [ "$?" != 0 ]; then
+        "Depsky docker not found or not a directory. Skipping."
+        return
+    fi
     echo "Building depsky docker"
     $DOCKER build -t depsky .
     cd ..
 }
 
 function mw {
+    cd docker-mie
+    if [ "$?" != 0 ]; then
+        echo "Middleware docker not found or not a directory. Skipping."
+        return
+    fi
+    cd ..
     $DOCKER inspect ramcloud > /dev/null 2>&1
     if [ "$?" != 0 ]; then
         echo "Ramcloud docker not found. Build it?"
@@ -71,6 +85,10 @@ function mw {
 
 function client {
     cd demo/docker-client
+    if [ "$?" != 0 ]; then
+        echo "Client docker not found or not a directory. Skipping."
+        return
+    fi
     stat opencv-2.4.10 > /dev/null 2>&1
     if [ "$?" != 0 ]; then
         echo "OpenCV 2.4.10 not found in current directory. Attempt to download it?"

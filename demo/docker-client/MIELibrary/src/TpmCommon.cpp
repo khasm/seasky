@@ -1,11 +1,14 @@
 #include "TpmCommon.h"
 #include <iconv.h>
 #include <langinfo.h>
-
-#include <trousers/trousers.h>
-#define DBG(message, tResult) printf("(Line %d, %s) %s returned 0x%08x. %s.\n\n",__LINE__,__func__,message, tResult,(char *)Trspi_Error_String(tResult));
+#include <iostream>
 
 using namespace std;
+
+void log(const string& msg)
+{
+    cerr<<msg<<endl;
+}
 
 vector<UNICODE> toutf16le(const string& address)
 {
@@ -38,8 +41,10 @@ TSS_RESULT getQuote(const TSS_UUID& uuid, const std::string& address, const std:
     TSS_RESULT result;
     //create context and connect to tpm
     result = Tspi_Context_Create(&hContext);
-    if(TSS_SUCCESS != result)
+    if(TSS_SUCCESS != result){
+        log("TPM: GetQuote: Context creation failed");
         return result;
+    }
     if(!address.empty()){
     	vector<UNICODE> host = toutf16le(address);
     	result = Tspi_Context_Connect(hContext, host.data());
@@ -48,11 +53,13 @@ TSS_RESULT getQuote(const TSS_UUID& uuid, const std::string& address, const std:
     	result = Tspi_Context_Connect(hContext, NULL);	
 	}
 	if(TSS_SUCCESS != result){
+        log("TPM: GetQuote: Context connection failed");
 		Tspi_Context_Close(hContext);
         return result;
 	}
 	result = Tspi_Context_GetTpmObject(hContext,&hTPM);
 	if(TSS_SUCCESS != result){
+        log("TPM: GetQuote: get TPM object failed");
 		Tspi_Context_Close(hContext);
         return result;
 	}
@@ -61,6 +68,7 @@ TSS_RESULT getQuote(const TSS_UUID& uuid, const std::string& address, const std:
     TSS_HKEY hSRK;
     result = Tspi_Context_LoadKeyByUUID(hContext, TSS_PS_TYPE_SYSTEM, SRK_UUID, &hSRK);
     if(TSS_SUCCESS != result){
+        log("TPM: GetQuote: load SRK key failed");
         Tspi_Context_CloseObject(hContext, hTPM);
         Tspi_Context_Close(hContext);
         return result;
@@ -68,17 +76,14 @@ TSS_RESULT getQuote(const TSS_UUID& uuid, const std::string& address, const std:
     TSS_HPOLICY hSrkPolicy;
     result = Tspi_GetPolicyObject(hSRK, TSS_POLICY_USAGE, &hSrkPolicy);
     if(TSS_SUCCESS != result){
-        Tspi_Context_CloseObject(hContext, hSRK);
-        Tspi_Context_CloseObject(hContext, hTPM);
+        log("TPM: GetQuote: get key policy failed");
         Tspi_Context_Close(hContext);
         return result;
     }
     BYTE srkSecret[] = TSS_WELL_KNOWN_SECRET;
     result = Tspi_Policy_SetSecret(hSrkPolicy, TSS_SECRET_MODE_SHA1, sizeof(srkSecret), srkSecret);
     if(TSS_SUCCESS != result){
-        Tspi_Context_CloseObject(hContext, hSrkPolicy);
-        Tspi_Context_CloseObject(hContext, hSRK);
-        Tspi_Context_CloseObject(hContext, hTPM);
+        log("TPM: GetQuote: set key policy failed");
         Tspi_Context_Close(hContext);
         return result;
     }
@@ -86,9 +91,7 @@ TSS_RESULT getQuote(const TSS_UUID& uuid, const std::string& address, const std:
     TSS_HKEY hAIK;
     result = Tspi_Context_LoadKeyByUUID(hContext, TSS_PS_TYPE_SYSTEM, uuid, &hAIK);
     if(TSS_SUCCESS != result){
-        Tspi_Context_CloseObject(hContext, hSrkPolicy);
-        Tspi_Context_CloseObject(hContext, hSRK);
-        Tspi_Context_CloseObject(hContext, hTPM);
+        log("TPM: GetQuote: load aik failed");
         Tspi_Context_Close(hContext);
         return result;
     }
@@ -96,32 +99,20 @@ TSS_RESULT getQuote(const TSS_UUID& uuid, const std::string& address, const std:
     TSS_HPCRS hPcrs;
     result = Tspi_Context_CreateObject(hContext, TSS_OBJECT_TYPE_PCRS, 0, &hPcrs);
     if(TSS_SUCCESS != result){
-        Tspi_Context_CloseObject(hContext, hAIK);
-        Tspi_Context_CloseObject(hContext, hSrkPolicy);
-        Tspi_Context_CloseObject(hContext, hSRK);
-        Tspi_Context_CloseObject(hContext, hTPM);
+        log("TPM: GetQuote: create pcr object failed");
         Tspi_Context_Close(hContext); 
         return result;
     }
     for(vector<int>::const_iterator it = pcrs.begin(); it != pcrs.end(); ++it){
         result = Tspi_PcrComposite_SelectPcrIndex(hPcrs, *it);
         if(TSS_SUCCESS != result){
-            Tspi_Context_CloseObject(hContext, hPcrs);
-            Tspi_Context_CloseObject(hContext, hAIK);
-            Tspi_Context_CloseObject(hContext, hSrkPolicy);
-            Tspi_Context_CloseObject(hContext, hSRK);
-            Tspi_Context_CloseObject(hContext, hTPM);
+            log("TPM: GetQuote: select pcr failed");
             Tspi_Context_Close(hContext);
             return result;
         }
     }
     //get quote
     result = Tspi_TPM_Quote(hTPM, hAIK, hPcrs, &valid);
-    Tspi_Context_CloseObject(hContext, hPcrs);
-    Tspi_Context_CloseObject(hContext, hAIK);
-    Tspi_Context_CloseObject(hContext, hSrkPolicy);
-    Tspi_Context_CloseObject(hContext, hSRK);
-    Tspi_Context_CloseObject(hContext, hTPM);
     //Tspi_Context_Close(hContext);
     return result;
 }

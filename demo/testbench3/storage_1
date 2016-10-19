@@ -1,6 +1,3 @@
 #!/bin/bash
 
-ip="$1"
-cache_mode="$2"
-
-docker run --rm --net=host --name=rc ramcloud rc 1 rczk "$1" "$2"
+docker run --rm --net=host --name=rc ramcloud rc 1 rczk "$1" rcip "$2"

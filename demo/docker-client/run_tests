@@ -1,11 +1,13 @@
 #!/bin/bash
 server_ip=127.0.0.1
 
+max_documents=999
+
 function add {
     date
     client_times="$(java -Djava.library.path=/usr/local/share/OpenCV/java -cp \
         bin:/usr/local/share/OpenCV/java/opencv-2410.jar mie.Main ip $server_ip path \
-        /datasets add 0 999 print | grep 'total_time\|verified:\|client cache
+        /datasets add 0 $max_documents print | grep 'total_time\|verified:\|client cache
         \|Client cache hit ratio:\|CBIR encryption:\|Symmetric encryption:\|Misc:')"
     # let the server handle all the requests, since the server is multithreaded a print
     # command right after the last upload might not account for the upload time of that
@@ -63,27 +65,27 @@ function get {
 	if [ "$1" == "cache_client80" ]; then
 		output="$(java -Djava.library.path=/usr/local/share/OpenCV/java -cp \
 		  bin:/usr/local/share/OpenCV/java/opencv-2410.jar mie.Main path /datasets \
-          cache ip $server_ip get 0 999 cache80 print)"
+          cache ip $server_ip get 0 $max_documents cache80 print)"
     elif [ "$1" == "cache_server80" ]; then
         output="$(java -Djava.library.path=/usr/local/share/OpenCV/java -cp \
           bin:/usr/local/share/OpenCV/java/opencv-2410.jar mie.Main path /datasets \
-          ip $server_ip get 0 999 cache80 print)"
+          ip $server_ip get 0 $max_documents cache80 print)"
     elif [ "$1" == "cache_client100" ]; then
         output="$(java -Djava.library.path=/usr/local/share/OpenCV/java -cp \
           bin:/usr/local/share/OpenCV/java/opencv-2410.jar mie.Main path /datasets \
-          cache ip $server_ip get 0 999 cache_client100 print)"
+          cache ip $server_ip get 0 $max_documents cache_client100 print)"
     elif [ "$1" == "cache_server100" ]; then
         output="$(java -Djava.library.path=/usr/local/share/OpenCV/java -cp \
           bin:/usr/local/share/OpenCV/java/opencv-2410.jar mie.Main path /datasets \
-          ip $server_ip get 0 999 cache_server100 print)"
+          ip $server_ip get 0 $max_documents cache_server100 print)"
     elif [ "$1" == "double_cache" ]; then
         output="$(java -Djava.library.path=/usr/local/share/OpenCV/java -cp \
           bin:/usr/local/share/OpenCV/java/opencv-2410.jar mie.Main path /datasets \
-          cache ip $server_ip get 0 999 double_cache print)"
+          cache ip $server_ip get 0 $max_documents double_cache print)"
     else
         output="$(java -Djava.library.path=/usr/local/share/OpenCV/java -cp \
           bin:/usr/local/share/OpenCV/java/opencv-2410.jar mie.Main path /datasets \
-          ip $server_ip get 0 999 print)"
+          ip $server_ip get 0 $max_documents print)"
     fi
     echo "/**********Server times************/"
     echo "$output" | grep -v 'total_time\|verified:\|client cache\|Client cache hit ratio:
@@ -115,10 +117,10 @@ function clear_times {
 if [ "$1" == "--help" ] || [ "$1" == "" ] || [ "$1" == "-h" ]; then
     echo "Usage: docker run mie_client [ip <address>] <command1> [<command2> ...]"
     echo "Commands:"
-    echo "add:                      Performs an upload test of 1000 images and text"
+    echo "add:                      Performs an upload test"
     echo "index:                    Performs an index test"
     echo "search:                   Performs a search test"
-    echo "get [cache_mode]:         Performs a download test of 1000 images"
+    echo "get [cache_mode]:         Performs a download test"
     echo "print:                    Prints measurements of the server"
     echo "clear:                    Clears measured times"
     echo "full [cache_mode]:        Performs add, index, search and get commands"
@@ -132,13 +134,34 @@ repeated. This should be used with a single cache on either client or server.
 cache_client100 and cache_server100 will preload the files in the cache before the
 measurements. There will be extra network traffic for cache_server100. Double cache
 will preload files in the server cache so that both the client and server cache
-have approximately 80% hit rate".
+have approximately 80% hit rate. Tests were performed with 1000 documents, the hit
+rates might vary if using a different amount of documents".
     exit
 fi
 
 if [ "$1" == "ip" ]; then
-    server_ip=$1
+    server_ip=$2
     shift 2
+fi
+
+stat /datasets/flickr_imgs > /dev/null 2>&1
+if [ "$?" != 0 ]; then
+    echo "/datasets/flickr_imgs not found"
+    exit
+fi
+stat /datasets/flickr_tags > /dev/null 2>&1
+if [ "$?" != 0 ]; then
+    echo "/datasets/flickr_tags not found"
+    exit
+fi
+
+max_imgs=$(ls /datasets/flickr_imgs/*.jpg | grep -E im[0-9]+.jpg | wc -l)
+max_tags=$(ls /datasets/flickr_tags/*.txt | grep -E tags[0-9]+.txt | wc -l)
+
+if [ "$max_imgs" -gt "$max_tags" ]; then
+    max_documents=$max_imgs
+else
+    max_documents=$max_tags
 fi
 
 while [ "$1" != "" ]; do
