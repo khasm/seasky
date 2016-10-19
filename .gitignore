@@ -2,4 +2,5 @@ demo/docker-client/MIELibrary/bin
 docker-mie/jdk-8u91-linux-x64.tar.gz
 docker-mie/opencv*
 demo/docker-client/opencv*
-demo/docker-client/datasets
+demo/docker-client/datasets/flickr_imgs/*.jpg
+demo/docker-client/datasets/flickr_tags/*.txt

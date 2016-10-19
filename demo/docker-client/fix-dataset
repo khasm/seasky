@@ -6,7 +6,7 @@ for x in $(ls /datasets/flickr_imgs/*.jpg); do
     I=$((I+1))
 done
 T=0
-for x in $(ls datasets/flickr_tags/*.txt); do
-    echo $x datasets/flickr_tags/tags"$T".txt
+for x in $(ls /datasets/flickr_tags/*.txt); do
+    mv $x /datasets/flickr_tags/tags"$T".txt
     T=$((T+1))
 done
