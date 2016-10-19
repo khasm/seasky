@@ -24,11 +24,6 @@ sudo tcsd -e -f
 (new terminal)
 tpm_version
 
-cd tpm-quote-tools-1.0.2/
-./configure 
-make
-sudo make install
-
 tpm_clear --force
 #restart
 ./run_tpm.sh
@@ -38,7 +33,7 @@ tpm_setactive --active
 ./run_tpm.sh
 tpm_takeownership -z -y
 
-#create keys and uuid
+#create keys and uuid (not required if using tmp_loader)
 tpm_mkuuid uuid
 tpm_mkaik -z aik pubkey
 tpm_loadkey aik uuid

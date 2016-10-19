@@ -12,22 +12,12 @@ debug : Main.debug MIEServerMT.debug ServerUtil.debug Storage.debug DepskyStorag
 	-lz -lgmp -ldl -pthread -L /usr/lib/jvm/java-8-openjdk-amd64/jre/lib/amd64/server -ljvm -L/RAMCloud/obj\
 	 -lramcloud -lJerasure
 
-TpmServer: TpmServer.cpp
-	/usr/bin/g++-6 -o tpm_server TpmServer.cpp -pthread
-TpmClient: TpmClient.o TpmMain.o
-	/usr/bin/g++-6 -o tpm_client TpmClient.o TpmMain.o
-TpmClient.o: TpmClient.cpp
-	/usr/bin/g++-6 -std=c++11 -Wall -g -c TpmClient.cpp
-TpmMain.o: TpmMain.cpp
-	/usr/bin/g++-6 -std=c++11 -Wall -g -c TpmMain.cpp
 TpmLoader: TpmLoader.o TpmCommon.o
 	g++ -o tpm_loader TpmLoader.o TpmCommon.o -ltspi
 TpmLoader.o: TpmLoader.cpp
 	g++ -std=c++11 -Wall -g -c TpmLoader.cpp
-TpmVerifier: TpmVerifier.o TpmTest.o TpmCommon.o
-	/usr/bin/g++-6 -o tpm_verifier TpmVerifier.o TpmTest.o TpmCommon.o -ltspi
-TpmTest.o: TpmTest.cpp
-	/usr/bin/g++-6 -std=c++17 -Wall -g -c TpmTest.cpp
+TpmCommon.o: TpmCommon.cpp
+	g++ -std=c++11 -Wall -g -c TpmCommon.cpp
 Main.o : Main.cpp
 	/usr/bin/g++-6 -std=c++17 -Wall -I/usr/lib/jvm/java-8-openjdk-amd64/include -I/usr/lib/jvm/java-8-openjdk-amd64/include/linux/ -c Main.cpp
 MIEServerMT.o : MIEServerMT.cpp
@@ -52,10 +42,6 @@ RamCloudClient.o: RamCloudClient.cpp
 	/usr/bin/g++-6 -std=c++17 -Wall -I/RAMCloud/src -I/RAMCloud/obj -c RamCloudClient.cpp
 Mie.o: Mie.cpp
 	/usr/bin/g++-6 -std=c++17 -Wall -I /usr/local/opencv/opencv3.1/include -c Mie.cpp
-TpmCommon.o: TpmCommon.cpp
-	g++ -std=c++11 -Wall -g -c TpmCommon.cpp
-TpmVerifier.o: TpmVerifier.cpp
-	/usr/bin/g++-6 -std=c++17 -Wall -g -c TpmVerifier.cpp
 clean :
 	rm Server *.o
 
