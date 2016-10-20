@@ -33,12 +33,19 @@ docker rm DepSky
 The ramcloud docker has several arguments that can be used:
 
 zk: Starts a zookeeper server. Deployed in the middleware in our architecture so not used in the tests but left as an option.
+
 rcc: Starts a ramcloud coordinator.
+
 rcs: Starts a ramcloud storage server
+
 rc: Starts a ramcloud coordinator and a storage server. Equivalent to using both rcc and rcs.
+
 rczk: Defines the IP address and port of the zookeeper server in the format "ip_address:port".
+
 rcip: Defines the IP of the coordinator and storage servers
+
 rccp: Defines the port of the coordinator.
+
 rcsp: Defines the port of the storage server.
 
 The rcc, rcs and rc arguments have a mandatory option afterwards which is the cluster id. Ramcloud servers are organized in clusters, storage servers will attempt to communicate with the coordinator responsible for their cluster id and will ignore all coordinators and storage servers that belong to another cluster. For our tests we created 4 clusters, one in each datacenter, with ids from 1 to 4. For testbench1 only one cluster with id 0 was used. To start the ramcloud storage in a datacenter the command line would be:
@@ -50,6 +57,7 @@ The IP provided to rcip is the IP of the server where the docker is running, and
 The middleware docker supports the same options as the ramcloud docker plus:
 
 mc: Starts the memcached server.
+
 ds-local: Starts a local depsky server.
 
 Both flags can be ommited, and ds-local doesn't need to be used when using the depsky docker.
@@ -57,8 +65,11 @@ Both flags can be ommited, and ds-local doesn't need to be used when using the d
 Furthermore it also supports the following middleware options:
 
 backend: Must be "depsky" or "ramcloud". Can't be ommited.
+
 nocache: Disables the use of cache. Mandatory if the mc flag is ommited.
-testbench: Can be testbench2 or testbench3. 
+
+testbench: Can be testbench2 or testbench3.
+
 dsips: Must be followed by 1 or 4 and the same number of IP addresses, ie: dsips 1 127.0.0.1, or dsips 4 127.0.0.1 127.0.0.2 127.0.0.3 127.0.0.4
 
 For the ramcloud backend testbench2 and testbench3 are equivalent as it's the clouds where the dockers are deployed that determines which test is done. For DepSky testbench2 will create buckets in the same datacenter as the middleware and testbench3 will create buckets in different datacenters. If this flag is ommited it will default to testbench1. In this case RamCloud will assume a single cluster and will make the distition between storage server by using tables. For DepSky it will use the local storage server provided with it. In case this local server is deployed in a different docker, possibly in a different server, the dsips flag can be used to indicate the IP addresses in which the servers are running.
@@ -66,19 +77,29 @@ For the ramcloud backend testbench2 and testbench3 are equivalent as it's the cl
 The client demo supports the following options:
 
 add: Performs an upload test of 1000 documents
+
 index: Performs an index test
+
 search: Performs a search test
+
 get: Performs a download test
+
 print: print times and statistics from the server
+
 clear: resets times and statistics in the server
+
 full: performs a full set of tests: add, index, search and get
 
 For the get test it is possible to select the options:
 
 cache_client80: will perform a download with a cache on the client side with 80% hit rate
+
 cache_client100: will perform a download with a cache on the client side with 100% hit rate
+
 cache_server80: will perform a download with a cache on the server side with 80% hit rate
+
 cache_server100: will perform a download with a cache on the server side with 100% hit rate
+
 double_cache: will perform a download with a cache on the client and on the server, both with 80% hit rate
 
 These options can be ommited, in which case it will default to not using the cache. These selections must be used in conjuction with selecting to use cache or not on the server, as they will only enable or disable the cache on the client side and select a sequence of downloads that will get the desired hit rate on the cache. In some cases extra extra downloads of files might be done to preload the files in the cache for the desired hit rates. When ommiting these flags the sequence doesn't contain any repeated documents which will cause an hit rate of 0% regardless of the settings used in the server or client.
@@ -121,6 +142,7 @@ Start the tpm emulator:
 sudo tpmd -d -f
 
 -d: debug output (optional)
+
 -f: keep process in foreground (optional, will be moved to background if ommited)
 
 Start trousers:
