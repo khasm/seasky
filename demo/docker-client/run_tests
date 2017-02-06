@@ -99,7 +99,7 @@ function search {
     date
     output="$(java -Djava.library.path=/usr/local/share/OpenCV/java -cp \
         bin:/usr/local/share/OpenCV/java/opencv-2410.jar mie.Main ip $server_ip \
-        path /datasets search 0 999 print)"
+        path /datasets search 0 $max_documents print)"
     echo "/**********Server times************/"
     echo "$output" | grep -v 'total_time\|verified:\|client cache\|Client cache hit ratio:
         \|CBIR encryption:\|Symmetric encryption:\|Misc:'
