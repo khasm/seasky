@@ -159,9 +159,9 @@ max_imgs=$(ls /datasets/flickr_imgs/*.jpg | grep -E im[0-9]+.jpg | wc -l)
 max_tags=$(ls /datasets/flickr_tags/*.txt | grep -E tags[0-9]+.txt | wc -l)
 
 if [ "$max_imgs" -gt "$max_tags" ]; then
-    max_documents=$max_imgs
-else
     max_documents=$max_tags
+else
+    max_documents=$max_imgs
 fi
 max_documents=$((max_documents-1))
 
