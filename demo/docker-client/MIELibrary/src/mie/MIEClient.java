@@ -2,12 +2,14 @@ package mie;
 
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
+import java.io.InputStream;
 import java.nio.ByteBuffer;
 import java.security.NoSuchAlgorithmException;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Properties;
+import java.lang.ClassCastException;
 
 import javax.crypto.BadPaddingException;
 import javax.crypto.IllegalBlockSizeException;
@@ -18,8 +20,11 @@ import javax.mail.Multipart;
 import javax.mail.Session;
 import javax.mail.internet.MimeBodyPart;
 import javax.mail.internet.MimeMessage;
+import javax.mail.util.SharedByteArrayInputStream;
 
 import com.sun.mail.util.BASE64DecoderStream;
+
+import java.io.FileOutputStream;
 
 
 public class MIEClient implements MIE {
@@ -32,6 +37,9 @@ public class MIEClient implements MIE {
 	protected Cache cache;
 	private boolean aUseCache;
 	private boolean aVerified; //not actually used yet, proof of concept
+	private long networkTime;
+	private long networkTimeStart;
+	private int networkThreads;
 	
 	public MIEClient(boolean useCache) throws NoSuchAlgorithmException, NoSuchPaddingException, IOException{
 		this(DEFAULT_SERVER_HOST, DEFAULT_SERVER_PORT, useCache);
@@ -42,6 +50,9 @@ public class MIEClient implements MIE {
 		crypto = new MIECryptoModule();
 		cache = new CacheModule();
 		aUseCache = useCache;
+		networkTime = 0;
+		networkTimeStart = 0;
+		networkThreads = 0;
 		System.out.println("client cache: "+aUseCache);
 		TpmVerifier tpm = new TpmVerifier();
 		aVerified = tpm.verify(host);
@@ -50,6 +61,11 @@ public class MIEClient implements MIE {
 	
 	public MIEClient(String host, boolean useCache) throws NoSuchAlgorithmException, NoSuchPaddingException, IOException{
 		this(host, DEFAULT_SERVER_PORT, useCache);
+	}
+
+	@Override
+	public long getNetworkTime() {
+		return networkTime;
 	}
 	
 	@Override
@@ -93,12 +109,33 @@ public class MIEClient implements MIE {
 	@Override
 	public boolean addUnstructredDoc(String name, byte[] img, byte[] txt) {
 		try {
-			byte[] img_cipher_text = crypto.encryptImg(img);
-			byte [] txt_cipher_text = crypto.encryptTxt(txt);
-			long start = System.nanoTime();
+			byte[] img_cipher_text = null;
+			byte[] txt_cipher_text = null;
+			txt_cipher_text = crypto.encryptTxt(txt);
+			synchronized(this){
+				img_cipher_text = crypto.encryptImg(img);
+				try{
+					FileOutputStream out = new FileOutputStream(name+".jpg");
+					out.write(img_cipher_text);
+					out.close();
+					out = new FileOutputStream(name+".txt");
+					out.write(txt_cipher_text);
+					out.close();
+				}
+				catch(IOException e){
+					e.printStackTrace();
+				}
+				if(0 == networkThreads)
+					networkTimeStart = System.nanoTime();
+				networkThreads++;
+			}
 			boolean ret = server.sendUnstructredDoc(name, img_cipher_text, txt_cipher_text);
-			long time = System.nanoTime()-start;
-			Main.networkTime += time;
+			long time = System.nanoTime();
+			synchronized(this){
+				if(1 == networkThreads)
+					networkTime += time - networkTimeStart;
+				networkThreads--;
+			}
 			return ret;
 		} catch (IllegalBlockSizeException e) {
 			///should not happen
@@ -115,10 +152,18 @@ public class MIEClient implements MIE {
 			doc = cache.getFromCache(name);
 		}
 		if(doc == null){
-			long start = System.nanoTime();
+			synchronized(this){
+				if(0 == networkThreads)
+					networkTimeStart = System.nanoTime();
+				networkThreads++;
+			}
 			doc = server.getDoc(name, useCache);
-			long time = System.nanoTime()-start;
-			Main.networkTime += time;
+			long time = System.nanoTime();
+			synchronized(this){
+				if(1 == networkThreads)
+					networkTime += time - networkTimeStart;
+				networkThreads--;
+			}
 			if(doc == null)
 				return null;
 			///both parts length
@@ -180,10 +225,18 @@ public class MIEClient implements MIE {
 		Map<String, byte[]> cbir_features = processMimeDocument(mime);
 		try {
 			byte[] cipher_doc = crypto.encryptMime(mime);
-			long start = System.nanoTime();
+			synchronized(this){
+				if(0 == networkThreads)
+					networkTimeStart = System.nanoTime();
+				networkThreads++;
+			}
 			boolean ret = server.sendMimeDoc(name, cbir_features, cipher_doc);
-			long time = System.nanoTime()-start;
-			Main.networkTime += time;
+			long time = System.nanoTime();
+			synchronized(this){
+				if(1 == networkThreads)
+					networkTime += time - networkTimeStart;
+				networkThreads--;
+			}
 			return ret;
 		} catch (IllegalBlockSizeException e) {
 			///should not happen
@@ -199,10 +252,18 @@ public class MIEClient implements MIE {
 			doc = cache.getFromCache(name);
 		}
 		if(doc == null){
-			long start = System.nanoTime();
+			synchronized(this){
+				if(0 == networkThreads)
+					networkTimeStart = System.nanoTime();
+				networkThreads++;
+			}
 			doc = server.getDoc(name, useCache);
-			long time = System.nanoTime()-start;
-			Main.networkTime += time;
+			long time = System.nanoTime();
+			synchronized(this){
+				if(1 == networkThreads)
+					networkTime += time - networkTimeStart;
+				networkThreads--;
+			}
 			if(doc == null)
 				return null;
 			try {
@@ -221,10 +282,18 @@ public class MIEClient implements MIE {
 
 	@Override
 	public boolean index(boolean train, boolean wait) {
-		long start = System.nanoTime();
+		synchronized(this){
+			if(0 == networkThreads)
+				networkTimeStart = System.nanoTime();
+			networkThreads++;
+		}
 		boolean ret = server.index(train, wait);
-		long time = System.nanoTime()-start;
-		Main.networkTime += time;
+		long time = System.nanoTime();
+		synchronized(this){
+			if(1 == networkThreads)
+				networkTime += time - networkTimeStart;
+			networkThreads--;
+		}
 		return ret;
 	}
 
@@ -232,20 +301,36 @@ public class MIEClient implements MIE {
 	public List<SearchResult> searchUnstructuredDocument(byte[] img, byte[] txt, int nResults) {
 		byte [] img_features = crypto.cbirImg(img);
 		byte [] txt_features = crypto.cbirTxt(txt);
-		long start = System.nanoTime();
+		synchronized(this){
+			if(0 == networkThreads)
+				networkTimeStart = System.nanoTime();
+			networkThreads++;
+		}
 		List<SearchResult> ret = server.searchUnstructredDoc(img_features, txt_features, nResults);
-		long time = System.nanoTime()-start;
-		Main.networkTime += time;
+		long time = System.nanoTime();
+		synchronized(this){
+			if(1 == networkThreads)
+				networkTime += time - networkTimeStart;
+			networkThreads--;
+		}
 		return ret;
 	}
 
 	@Override
 	public List<SearchResult> searchMime(byte[] mime, int nResults) throws MessagingException {
 		Map<String, byte[]> cbir_features = processMimeDocument(mime);
-		long start = System.nanoTime();
+		synchronized(this){
+			if(0 == networkThreads)
+				networkTimeStart = System.nanoTime();
+			networkThreads++;
+		}
 		List<SearchResult> ret = server.searchMimeDoc(cbir_features, nResults);
-		long time = System.nanoTime()-start;
-		Main.networkTime += time;
+		long time = System.nanoTime();
+		synchronized(this){
+			if(1 == networkThreads)
+				networkTime += time - networkTimeStart;
+			networkThreads--;
+		}
 		return ret;
 		
 	}
@@ -293,7 +378,7 @@ public class MIEClient implements MIE {
 		}
 		else if(contentType.equalsIgnoreCase("image/jpeg")){
 			try {
-				Object img = msg.getContent();
+				InputStream img = msg.getInputStream();
 				ret.put("imgFeatures"+0, processImg(img));
 			} catch (IOException e) {
 				e.printStackTrace();
@@ -311,16 +396,15 @@ public class MIEClient implements MIE {
 		return ret;
 	}
 	
-	private byte[] processImg(Object img) throws IOException{
-		BASE64DecoderStream obj = (BASE64DecoderStream)img;
-		byte[] tmp = new byte[obj.available()];
+	private byte[] processImg(InputStream img) throws IOException{
+		byte[] tmp = new byte[img.available()];
 		int read = 0, j;
-		while((j = obj.read()) != -1){
+		while((j = img.read()) != -1){
 			tmp[read++]=(byte)j;
 		}
 		byte[] dec = new byte[read];
 		System.arraycopy(tmp, 0, dec, 0, read);
-		obj.close();
+		img.close();
 		return crypto.cbirImg(dec);
 	}
 	
@@ -335,7 +419,7 @@ public class MIEClient implements MIE {
 				ret.put("textFeatures"+id++, crypto.cbirTxt(content.getBytes()));
 			}
 			else if(type.equalsIgnoreCase("image/jpeg")){
-				Object img = body.getContent();
+				InputStream img = body.getInputStream();
 				ret.put("imgFeatures"+id++, processImg(img));
 			}
 			else if(type.startsWith("multipart/")){

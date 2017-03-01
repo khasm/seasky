@@ -2,10 +2,13 @@ package mie;
 
 import java.io.FileInputStream;
 import java.io.FileOutputStream;
+import java.io.File;
 import java.io.IOException;
+import java.io.PrintWriter;
 import java.security.NoSuchAlgorithmException;
 import java.util.HashMap;
 import java.util.LinkedList;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.HashMap;
@@ -13,6 +16,7 @@ import java.util.Random;
 import java.util.Set;
 import java.util.HashSet;
 import java.nio.ByteBuffer;
+import java.lang.InterruptedException;
 
 import javax.crypto.NoSuchPaddingException;
 import javax.mail.MessagingException;
@@ -26,6 +30,7 @@ import javax.crypto.Cipher;
 import javax.crypto.IllegalBlockSizeException;
 import javax.crypto.NoSuchPaddingException;
 import javax.crypto.BadPaddingException;
+import javafx.util.Pair;
 
 import mie.crypto.TimeSpec;
 
@@ -37,6 +42,7 @@ public class Main {
 	static long featureExtractionTime = 0;
 	static long totalTime = 0;
 	static String datasetPath = ".";
+	static List<Pair<Long,String>> log;
 	
 	public static void main(String[] args) throws IOException, MessagingException,
 		NoSuchAlgorithmException, NoSuchPaddingException, InvalidKeyException, IllegalBlockSizeException,
@@ -45,86 +51,70 @@ public class Main {
 			printHelp();
 		}
 		else{
-			if(args[0].equalsIgnoreCase("compare")){
-				compareCBIR();
-			}
-			MIE mie;
 			int nextArg = 0;
-			int ip_index = -1;
-			int path_index = -1;
+			int n_threads = 1;
 			boolean useCache = false;
-			try{
-				if(args[0].equalsIgnoreCase("ip"))
-					ip_index = 0;
-				else if(args[1].equalsIgnoreCase("ip"))
-					ip_index = 1;
-				else if(args[2].equalsIgnoreCase("ip"))
-					ip_index = 2;
-				else if(args[3].equalsIgnoreCase("ip"))
-					ip_index = 3;
-				if(args[0].equalsIgnoreCase("path"))
-					path_index = 0;
-				else if(args[1].equalsIgnoreCase("path"))
-					path_index = 1;
-				else if(args[2].equalsIgnoreCase("path"))
-					path_index = 2;
-				else if(args[3].equalsIgnoreCase("path"))
-					path_index = 3;
-				if(args[0].equalsIgnoreCase("cache") || args[2].equalsIgnoreCase("cache")||
-					args[4].equalsIgnoreCase("cache")){
-					useCache = true;
+			List<Command> queue = new ArrayList<Command>(args.length);
+			String ip = "localhost";
+			Monitor monitor = new Monitor();
+			log = new LinkedList<Pair<Long,String>>();
+			while(nextArg < args.length){
+				if(args[nextArg].equalsIgnoreCase("compare")){
+					//compareCBIR();
+					queue.add(new Command(args[nextArg], new String[0]));
 					nextArg++;
 				}
-			} catch (ArrayIndexOutOfBoundsException e){}
-			if(-1 != ip_index){
-				try{
-					mie = new MIEClient(args[ip_index+1], useCache);
-					nextArg += 2;
-				} 
-				catch (ArrayIndexOutOfBoundsException e){
-					mie = null;
-					printHelp();
-				}
-			}
-			else{
-				mie = new MIEClient(useCache);
-			}
-			if(-1 != path_index){
-				try{
-					datasetPath = args[path_index+1];
-					nextArg += 2;
-				} 
-				catch (ArrayIndexOutOfBoundsException e){
-					mie = null;
-					printHelp();
-				}
-			}
-			while(nextArg < args.length){
-				if(args[nextArg].startsWith("add")){
+				else if(args[nextArg].startsWith("add") || args[nextArg].startsWith("search") ||
+					args[nextArg].startsWith("get")){
 					try{
 						int first = Integer.parseInt(args[nextArg+1]);
 						int last = first;
 						try{
 							last = Integer.parseInt(args[nextArg+2]);
 						} catch (NumberFormatException | ArrayIndexOutOfBoundsException e){}
-						long start = System.nanoTime();
-						if(args[nextArg].equalsIgnoreCase("add")){
-							addUnstructered(mie, first, last);
+						int cache_mode = 0;
+						if(args[nextArg].equalsIgnoreCase("add") ||
+							args[nextArg].equalsIgnoreCase("addDMime") ||
+							args[nextArg].equalsIgnoreCase("addMime") ||
+							args[nextArg].equalsIgnoreCase("search") ||
+							args[nextArg].equalsIgnoreCase("searchDMime") ||
+							args[nextArg].equalsIgnoreCase("searchMime")){
+							Command com = new Command(args[nextArg], new String[]{""+first, ""+last});
+							queue.add(com);
 						}
-						else if(args[nextArg].startsWith("addd")){
-							addDMime(mie, first, last);
-						}
-						else if(args[nextArg].equalsIgnoreCase("addMime")){
-							addMime(mie, first, last);
+						else if(args[nextArg].equalsIgnoreCase("get") ||
+							args[nextArg].equalsIgnoreCase("getMime")){
+							if(first != last){
+								try{
+									if(args[nextArg+3].equalsIgnoreCase("cache80")){
+										cache_mode = 1;
+									}
+									else if(args[nextArg+3].equalsIgnoreCase("cache_client100")){
+										cache_mode = 2;
+									}
+									else if(args[nextArg+3].equalsIgnoreCase("cache_server100")){
+										cache_mode = 3;
+									}
+									else if(args[nextArg+3].equalsIgnoreCase("double_cache")){
+										cache_mode = 4;
+									}
+								}
+								catch (ArrayIndexOutOfBoundsException e){}
+							}
+							Command com = 0 != cache_mode ?
+								new Command(args[nextArg], new String[]{""+first, ""+last, args[nextArg+3]}):
+								new Command(args[nextArg], new String[]{""+first, ""+last});
+							queue.add(com);
 						}
 						else{
 							printHelp();
 						}
-						totalTime = System.nanoTime()-start;
 						if(first == last)
 							nextArg+=2;
 						else
 							nextArg+=3;
+						if(0 != cache_mode)
+							nextArg++;
 					}
 					catch (NumberFormatException | ArrayIndexOutOfBoundsException e){
 						printHelp();
@@ -140,173 +130,171 @@ public class Main {
 						}
 					}
 					catch(ArrayIndexOutOfBoundsException e){}
-					long start = System.nanoTime();
-					mie.index(true, wait);
-					totalTime = System.nanoTime()-start;
+					Command com = new Command("index", wait ? new String[]{"w"} : new String[0]);
+					queue.add(com);
 					nextArg++;
 				}
-				else if(args[nextArg].equalsIgnoreCase("reset")){
-					long start = System.nanoTime();
-					mie.resetServerCache();
-					totalTime = System.nanoTime()-start;
+				else if(args[nextArg].equalsIgnoreCase("reset") ||
+					args[nextArg].equalsIgnoreCase("print") ||
+					args[nextArg].equalsIgnoreCase("clear")){
+					Command com = new Command(args[nextArg], new String[0]);
+					queue.add(com);
 					nextArg++;
 				}
-				else if(args[nextArg].equalsIgnoreCase("search")){
+				else if(args[nextArg].equalsIgnoreCase("ip") ||
+					args[nextArg].equalsIgnoreCase("path")){
 					try{
-						int first = Integer.parseInt(args[nextArg+1]);
-						int last = first;
-						try{
-							last = Integer.parseInt(args[nextArg+2]);
-						} catch (NumberFormatException | ArrayIndexOutOfBoundsException e){}
-						long start = System.nanoTime();
-						if(args[nextArg].equalsIgnoreCase("search")){
-							searchUnstructured(mie, first, last);
-						}
-						else if(args[nextArg].startsWith("searchd")){
-							searchDMime(mie, first, last);
-						}
-						else if(args[nextArg].equalsIgnoreCase("searchMime")){
-							searchMime(mie, first, last);
-						}
-						else{
-							printHelp();
-						}
-						totalTime = System.nanoTime()-start;
-						if(first == last)
-							nextArg+=2;
-						else
-							nextArg+=3;
+						queue.add(new Command(args[nextArg], new String[]{args[nextArg+1]}));
+						nextArg += 2;
 					}
-					catch (NumberFormatException | ArrayIndexOutOfBoundsException e){
+					catch(ArrayIndexOutOfBoundsException e){
 						printHelp();
 					}
 				}
-				else if(args[nextArg].equalsIgnoreCase("get")){
+				else if(args[nextArg].equalsIgnoreCase("threads")){
 					try{
-						int first = Integer.parseInt(args[nextArg+1]);
-						int last = first;
-						try{
-							last = Integer.parseInt(args[nextArg+2]);
-						} catch (NumberFormatException | ArrayIndexOutOfBoundsException e){}
-						int[] ids;
-						Set<Integer> added = new HashSet<Integer>();
-						Cache c = ((MIEClient)mie).cache;
-						int cache_mode = 0;
-						if(first != last){
-							try{
-								if(args[nextArg+3].equalsIgnoreCase("cache80")){
-									cache_mode = 1;
-								}
-								else if(args[nextArg+3].equalsIgnoreCase("cache_client100")){
-									cache_mode = 2;
-								}
-								else if(args[nextArg+3].equalsIgnoreCase("cache_server100")){
-									cache_mode = 3;
-								}
-								else if(args[nextArg+3].equalsIgnoreCase("double_cache")){
-									cache_mode = 4;
-								}
-							}catch (ArrayIndexOutOfBoundsException e){}
-							switch(cache_mode){
-								case(1):
-									ids = getIds(first, last);
-									break;
-								case(2):
-									ids = getIds(first, last);
-									for(int i: ids){
-										if(!added.contains(i)){
-											byte[] img = readImg(i);
-											byte[] txt = readTxt(i);
-											ByteBuffer buffer = ByteBuffer.allocate(4+img.length +
-												txt.length);
-											buffer.putInt(img.length);
-											buffer.put(img);
-											buffer.put(txt);
-											c.addToCache(i+"", buffer.array());
-											added.add(i);
-										}
-									}
-									break;
-								case(3):
-									ids = getIds(first, last);
-									for(int i: ids){
-										if(!added.contains(i)){
-											mie.getUnstructuredDoc(i+"", true);
-											added.add(i);
-										}
-									}
-									mie.clearServerTimes();
-									networkTime = 0;
-									TimeSpec.reset();
-									c.clear();
-									c.resetStats();
-									break;
-								case(4):
-									ids = getIds(first, last);
-									for(int i: ids){
-										if(!added.contains(i)){
-											added.add(i);
-										}
-									}
-									int n = added.size();
-									double nc = n/10.0*8.0;
-									Integer[] intg = added.toArray(new Integer[0]);
-									for(int i = 0; i < nc; i++){
-										mie.getUnstructuredDoc(intg[i]+"", true);
-									}
-									mie.clearServerTimes();
-									networkTime = 0;
-									TimeSpec.reset();
-									c.clear();
-									c.resetStats();
-									break;
-								default:
-									ids = new int[last-first+1];
-									for(int i = first; i <=last; i++){
-										ids[i-first] = i;
-									}
-							}
-						}
-						else{
-							ids = new int[1];
-							ids[0] = first;
-						}
-						long start = System.nanoTime();
-						if(args[nextArg].equalsIgnoreCase("get")){
-							getUnstructured(mie, ids);
-						}
-						else if(args[nextArg].equalsIgnoreCase("getMime")){
-							getMime(mie, first, last);
-						}
-						else{
-							printHelp();
-						}
-						totalTime = System.nanoTime()-start;
-						if(first == last)
-							nextArg+=2;
-						else
-							nextArg+=3;
-						if(0 != cache_mode)
-							nextArg++;
+						int tmp = Integer.parseInt(args[nextArg+1]);
+						queue.add(new Command(args[nextArg], new String[]{""+tmp}));
+						nextArg += 2;
 					}
-					catch (NumberFormatException | ArrayIndexOutOfBoundsException e){
+					catch(ArrayIndexOutOfBoundsException | NumberFormatException e){
 						printHelp();
 					}
 				}
-				else if(args[nextArg].equalsIgnoreCase("print")){
+				else if(args[nextArg].equalsIgnoreCase("cache") ||
+					args[nextArg].equalsIgnoreCase("nocache")){
+					//useCache = true;
+					queue.add(new Command(args[nextArg], new String[0]));
+					nextArg++;
+				}
+			}
+			MIE mie = null;
+			for(Command command: queue){
+				if(command.op.equalsIgnoreCase("ip")){
+					ip = command.args[0];
+				}
+				else if(command.op.equalsIgnoreCase("path")){
+					datasetPath = command.args[0];
+				}
+				else if(command.op.equalsIgnoreCase("cache")){
+					useCache = true;
+				}
+				else if(command.op.equalsIgnoreCase("nocache")){
+					useCache = false;
+				}
+				else if(command.op.equalsIgnoreCase("threads")){
+					n_threads = Integer.parseInt(command.args[0]);
+				}
+				else if(command.op.equalsIgnoreCase("print")){
+					if(null == mie){
+						mie = new MIEClient(ip, useCache);
+					}
 					Map<String,String> stats = mie.printServerStatistics();
 					for(String key: stats.keySet()){
 						System.out.println(key+": "+stats.get(key));
 					}
-					nextArg++;
+					networkTime = mie.getNetworkTime();
 					printStats();
 				}
-				else if(args[nextArg].equalsIgnoreCase("clear")){
-					mie.clearServerTimes();
-					nextArg++;
+				else if(command.op.equalsIgnoreCase("reset") ||
+					command.op.equalsIgnoreCase("index") ||
+					command.op.equalsIgnoreCase("clear") ||
+					command.op.startsWith("add") ||
+					command.op.startsWith("get") ||
+					command.op.startsWith("search")){
+					if(null == mie){
+						mie = new MIEClient(ip, useCache);
+					}
+					runThreads(n_threads, command, /*ip, useCache*/mie, monitor);
 				}
 			}
-			//printStats();
+			PrintWriter logger = new PrintWriter("log");
+			for(Pair<Long,String> op: log){
+				logger.println(op.getKey()+": "+op.getValue());
+			}
+			logger.close();
+			/*System.out.printf("Host: %s\n", ip);
+			System.out.printf("Cache: %s\n", useCache);
+			System.out.printf("Dataset Path: %s\n", datasetPath);
+			System.out.printf("Threads: %d\n", n_threads);
+			System.out.printf("Commands:\n");
+			for(Command com: queue){
+				System.out.printf("%s ", com.op);
+				for(String arg: com.args)
+					System.out.printf("%s ", arg);
+				System.out.println();
+			}*/
+		}
+	}
+
+	private static void runThreads(int n_threads, Command com, /*String ip, boolean useCache*/MIE mie, 
+		Monitor monitor){
+		String[] imgs = new File(datasetPath, "flickr_imgs").list();
+		String[] txts = new File(datasetPath, "flickr_tags").list();
+		int maxUnstructuredDocs = imgs.length > txts.length ? txts.length : imgs.length;
+		int maxMimeDocs = new File(datasetPath, "mime").list().length;
+		int maxDMimeDocs = new File(datasetPath, "dmime").list().length;
+		Thread[] clients = new Thread[n_threads];
+		int maxDocs = -1;
+		if(com.op.startsWith("add") || com.op.startsWith("get") ||
+			com.op.startsWith("search") && com.args.length>1){
+			if(com.op.equalsIgnoreCase("add") || com.op.equalsIgnoreCase("get") ||
+				com.op.equalsIgnoreCase("search")){
+				maxDocs = maxUnstructuredDocs;
+			}
+			else if(com.op.equalsIgnoreCase("addmime") ||
+				com.op.equalsIgnoreCase("getmime") ||
+				com.op.equalsIgnoreCase("searchmime")){
+				maxDocs = maxMimeDocs;
+			}
+			else if(com.op.equalsIgnoreCase("adddmime") ||
+				com.op.equalsIgnoreCase("getdmime") ||
+				com.op.equalsIgnoreCase("searchdmime")){
+				maxDocs = maxDMimeDocs;
+			}		
+		}
+		for(int i = 0; i < n_threads; i++){
+			Command c = com;
+			if(-1 != maxDocs){
+				int min = Integer.parseInt(com.args[0]);
+				int max = Integer.parseInt(com.args[1]);
+				int nDocs = max-min + 1;
+				if(nDocs <= maxDocs){
+					int reqDocs = nDocs / n_threads;
+					int first = i * reqDocs;
+					int last = first + reqDocs - 1;
+					if(last > max)
+						last = max;
+					if(com.args.length == 2)
+						c = new Command(com.op, new String[]{""+first, ""+last});
+					else
+						c = new Command(com.op, new String[]{""+first, ""+last, com.args[2]});
+				}
+				else{
+					//TODO
+				}
+			}
+			System.out.printf("Starting thread %d with command %s", i, c.op);
+			if(c.args.length > 0){
+				System.out.printf(" with args:");
+				for(String s: c.args)
+					System.out.printf(" %s", s);
+			}
+			System.out.println();
+			clients[i] = new ClientThread(i, c, /*ip, useCache*/mie, monitor);
+			clients[i].start();
+		}
+		monitor.ready();
+		long start = System.nanoTime();
+		try{
+			for(int i = 0; i < n_threads; i++){
+				System.out.printf("Waiting for thread %d\n", i);
+				clients[i].join();
+			}
+			totalTime = System.nanoTime()-start;
+		}
+		catch(InterruptedException e){
+			e.printStackTrace();
 		}
 	}
 
@@ -411,35 +399,51 @@ public class Main {
 	}
 	
 	
-	private static void addUnstructered(MIE mie, int first, int last) throws IOException{
+	protected static void addUnstructered(MIE mie, int first, int last, int threadId) throws IOException{
 		for(int i = first; i <= last; i++){
 			byte[] img = readImg(i);
 			byte[] txt = readTxt(i);
+			synchronized(log){
+				long t = System.currentTimeMillis();
+				log.add(new Pair<Long,String>(t, "Thread "+threadId+" add "+i));
+			}
 			mie.addUnstructredDoc(""+i, img, txt);
 		}
 	}
 	
-	private static void addMime(MIE mie, int first, int last) throws IOException, MessagingException{
+	protected static void addMime(MIE mie, int first, int last, int threadId) throws IOException, MessagingException{
 		for(int i = first; i <= last; i++){
 			byte[] mime = readMime(i);
+			synchronized(log){
+				long t = System.currentTimeMillis();
+				log.add(new Pair<Long,String>(t, "Thread "+threadId+" add "+i));
+			}
 			mie.addMime(""+i, mime);
 		}
 	}
 	
-	private static void addDMime(MIE mie, int first, int last) throws IOException, MessagingException{
+	protected static void addDMime(MIE mie, int first, int last, int threadId) throws IOException, MessagingException{
 		for(int i = first; i <= last; i++){
 			byte[] mime = readDMime(i);
+			synchronized(log){
+				long t = System.currentTimeMillis();
+				log.add(new Pair<Long,String>(t, "Thread "+threadId+" add "+i));
+			}
 			mie.addMime(""+i, mime);
 		}
 	}
 	
-	private static void searchUnstructured(MIE mie, int first, int last) throws IOException{
+	protected static void searchUnstructured(MIE mie, int first, int last, int threadId) throws IOException{
 		int hit = 0, miss = 0, total = 0, maxi = -1, mini = -1;
 		String maxid = "", minid = "";
 		double max = Double.MIN_VALUE, min = Double.MAX_VALUE, average = 0;
 		for(int i = first; i <= last; i++){
 			byte[] img = readImg(i);
 			byte[] txt = readTxt(i);
+			synchronized(log){
+				long t = System.currentTimeMillis();
+				log.add(new Pair<Long,String>(t, "Thread "+threadId+" search "+i));
+			}
 			List<SearchResult> res = mie.searchUnstructuredDocument(img, txt, 0);
 			total++;
 			if(!res.isEmpty()){
@@ -461,7 +465,7 @@ public class Main {
 					minid = r.getId();
 					min = r.getScore();
 				}
-				//printSearchResults(res, i);
+				printSearchResults(res, i);
 			}
 			else{
 				miss++;
@@ -474,12 +478,16 @@ public class Main {
 		System.out.printf("Min: %d %s %.6f\n", mini, minid, min);
 	}
 	
-	private static void searchMime(MIE mie, int first, int last) throws IOException, MessagingException{
+	protected static void searchMime(MIE mie, int first, int last, int threadId) throws IOException, MessagingException{
 		int hit = 0, miss = 0, total = 0, maxi = -1, mini = -1;
 		String maxid = "", minid = "";
 		double max = Double.MIN_VALUE, min = Double.MAX_VALUE, average = 0;
 		for(int i = first; i <= last; i++){
 			byte[] mime = readMime(i);
+			synchronized(log){
+				long t = System.currentTimeMillis();
+				log.add(new Pair<Long,String>(t, "Thread "+threadId+" search "+i));
+			}
 			List<SearchResult> res = mie.searchMime(mime, 0); 
 			total++;
 			if(!res.isEmpty()){
@@ -514,16 +522,21 @@ public class Main {
 		System.out.printf("Min: %d %s %.6f\n", mini, minid, min);
 	}
 	
-	private static void searchDMime(MIE mie, int first, int last) throws IOException, MessagingException{
+	protected static void searchDMime(MIE mie, int first, int last, int threadId) throws IOException, MessagingException{
 		int hit = 0, miss = 0, total = 0, maxi = -1, mini = -1;
 		String maxid = "", minid = "";
 		double max = Double.MIN_VALUE, min = Double.MAX_VALUE, average = 0;
 		for(int i = first; i <= last; i++){
 			byte[] mime = readDMime(i);
+			synchronized(log){
+				long t = System.currentTimeMillis();
+				log.add(new Pair<Long,String>(t, "Thread "+threadId+" search "+i));
+			}
 			List<SearchResult> res = mie.searchMime(mime, 0); 
 			total++;
 			if(!res.isEmpty()){
 				SearchResult r = res.get(0);
+				System.out.format("Search for %d returned %s\n", i, r.getId());
 				if(r.getId().equals(""+i)){
 					hit++;
 				}
@@ -544,6 +557,7 @@ public class Main {
 				printSearchResults(res, i);
 			}
 			else{
+				System.out.format("Search for %d returned nothing\n", i);
 				miss++;
 			}
 		}
@@ -561,22 +575,30 @@ public class Main {
 		}
 	}
 	
-	private static void getUnstructured(MIE mie, int[] ids) throws IOException{
+	protected static void getUnstructured(MIE mie, int[] ids, int threadId) throws IOException{
 		for(int i = 0; i < ids.length; i++){
+			synchronized(log){
+				long t = System.currentTimeMillis();
+				log.add(new Pair<Long,String>(t, "Thread "+threadId+" get "+i));
+			}
 			byte[][] file = mie.getUnstructuredDoc(ids[i]+"", true);
 			writeFile(i+".jpg", file[0]);
 			writeFile(i+".txt", file[1]);
 		}
 	}
 	
-	private static void getMime(MIE mie, int first, int last) throws IOException{
+	protected static void getMime(MIE mie, int first, int last, int threadId) throws IOException{
 		for(int i = first; i <= last; i++){
+			synchronized(log){
+				long t = System.currentTimeMillis();
+				log.add(new Pair<Long,String>(t, "Thread "+threadId+" get "+i));
+			}
 			byte[] file = mie.getMime(i+"", true);
 			writeFile(i+".mime", file);
 		}
 	}
 	
-	private static byte[] readImg(int id) throws IOException{
+	protected static byte[] readImg(int id) throws IOException{
 		FileInputStream in = new FileInputStream(datasetPath + "/flickr_imgs/im"+id+".jpg");
 		byte[] buffer = new byte[in.available()];
 		in.read(buffer);
@@ -584,7 +606,7 @@ public class Main {
 		return buffer;
 	}
 	
-	private static byte[] readTxt(int id) throws IOException{
+	protected static byte[] readTxt(int id) throws IOException{
 		FileInputStream in = new FileInputStream(datasetPath + "/flickr_tags/tags"+id+".txt");
 		byte[] buffer = new byte[in.available()];
 		in.read(buffer);
@@ -603,7 +625,7 @@ public class Main {
 	}
 
 	private static byte[] readMime(int id) throws IOException{
-		FileInputStream in = new FileInputStream(datasetPath + "/flickr_mime/"+id+".mime");
+		FileInputStream in = new FileInputStream(datasetPath + "/mime/"+id+".mime");
 		byte[] buffer = new byte[in.available()];
 		in.read(buffer);
 		in.close();
@@ -611,7 +633,7 @@ public class Main {
 	}
 	
 	private static byte[] readDMime(int id) throws IOException{
-		FileInputStream in = new FileInputStream(datasetPath + "/flickr_dmime/"+id+".mime");
+		FileInputStream in = new FileInputStream(datasetPath + "/dmime/"+id+".mime");
 		byte[] buffer = new byte[in.available()];
 		in.read(buffer);
 		in.close();
@@ -624,7 +646,7 @@ public class Main {
 		out.close();
 	}
 	
-	private static int[] getIds(int min, int max){
+	protected static int[] getIds(int min, int max){
 		int[] ids = new int[max-min+1];
 		boolean[] used = new boolean[max-min+1];
 		List<Integer> not_used = new LinkedList<Integer>();
@@ -666,5 +688,211 @@ public class Main {
 		//System.out.println("Total different docs: "+count.keySet().size());
 		//System.out.println("total: "+ids.length+" repeats: "+repeats+" repeat ratio; "+repeats/ids.length);
 		return ids;
+	}
+}
+
+class Command{
+
+	protected String op;
+	protected String[] args;
+
+	Command(String op, String[] args){
+		this.op = op;
+		this.args = args;
+	}
+}
+
+class Monitor{
+
+	private boolean ready;
+	private Object lock;
+
+	Monitor(){
+		ready = false;
+		lock = new Object();
+	}
+
+	void waitForThreads(){
+		synchronized(lock){
+			while(!ready){
+				try{
+					lock.wait();
+				}
+				catch(InterruptedException e){
+					e.printStackTrace();
+				}
+			}
+		}
+	}
+
+	void ready(){
+		synchronized(lock){
+			ready = true;
+			lock.notifyAll();
+		}
+	}
+}
+
+class ClientThread extends Thread{
+
+	private Command com;
+	private int id;
+	private MIE mie;
+	private Monitor monitor;
+
+	ClientThread(int id, Command com, /*String ip, boolean useCache*/MIE mie, Monitor monitor){
+		/*try{
+			this.mie = new MIEClient(ip, useCache);
+		}
+		catch(NoSuchAlgorithmException | NoSuchPaddingException | IOException e){
+			this.mie = null;
+		}*/
+		this.mie = mie;
+		this.com = com;
+		this.id = id;
+		this.monitor = monitor;
+	}
+
+	public void run(){
+		monitor.waitForThreads();
+		System.out.printf("Thread %d started\n", id);
+		try{
+			if(com.op.startsWith("add") || com.op.startsWith("search")){
+				int first = Integer.parseInt(com.args[0]);
+				int last = com.args.length == 2 ? Integer.parseInt(com.args[1]) : first;
+				if(com.op.equalsIgnoreCase("add")){
+					Main.addUnstructered(mie, first, last, id);
+				}
+				else if(com.op.equalsIgnoreCase("addDMime")){
+					Main.addDMime(mie, first, last, id);
+				}
+				else if(com.op.equalsIgnoreCase("addMime")){
+					Main.addMime(mie, first, last, id);
+				}
+				else if(com.op.equalsIgnoreCase("search")){
+					Main.searchUnstructured(mie, first, last, id);
+				}
+				else if(com.op.startsWith("searchd")){
+					Main.searchDMime(mie, first, last, id);
+				}
+				else if(com.op.equalsIgnoreCase("searchMime")){
+					Main.searchMime(mie, first, last, id);
+				}
+			}
+			else if(com.op.startsWith("get")){
+				int first = Integer.parseInt(com.args[0]);
+				int last = com.args.length >= 2 ? Integer.parseInt(com.args[1]) : first;
+				int[] ids;
+				Set<Integer> added = new HashSet<Integer>();
+				Cache c = ((MIEClient)mie).cache;
+				int cache_mode = 0;
+				if(first != last){
+					try{
+						if(com.args[2].equalsIgnoreCase("cache80")){
+							cache_mode = 1;
+						}
+						else if(com.args[2].equalsIgnoreCase("cache_client100")){
+							cache_mode = 2;
+						}
+						else if(com.args[2].equalsIgnoreCase("cache_server100")){
+							cache_mode = 3;
+						}
+						else if(com.args[2].equalsIgnoreCase("double_cache")){
+							cache_mode = 4;
+						}
+					}
+					catch (ArrayIndexOutOfBoundsException e){}
+					switch(cache_mode){
+						case(1):
+							ids = Main.getIds(first, last);
+							break;
+						case(2):
+							ids = Main.getIds(first, last);
+							for(int i: ids){
+								if(!added.contains(i)){
+									byte[] img = Main.readImg(i);
+									byte[] txt = Main.readTxt(i);
+									ByteBuffer buffer = ByteBuffer.allocate(4+img.length +
+										txt.length);
+									buffer.putInt(img.length);
+									buffer.put(img);
+									buffer.put(txt);
+									c.addToCache(i+"", buffer.array());
+									added.add(i);
+								}
+							}
+							break;
+						case(3):
+							ids = Main.getIds(first, last);
+							for(int i: ids){
+								if(!added.contains(i)){
+									mie.getUnstructuredDoc(i+"", true);
+									added.add(i);
+								}
+							}
+							mie.clearServerTimes();
+							//TODO: this reset makes times inaccurate with concurrency
+							TimeSpec.reset();
+							c.clear();
+							c.resetStats();
+							break;
+						case(4):
+							//need to do 3 steps for 80% hit rate on both caches
+							//first: get a list of the unique documents going to be
+							//retrieved
+							//second: retrieve ~80% of those unique documents to
+							//populate the server cache
+							//third: clear the client cache
+							ids = Main.getIds(first, last);
+							for(int i: ids){
+								if(!added.contains(i)){
+									added.add(i);
+								}
+							}
+							int n = added.size();
+							double nc = n/10.0*8.0;
+							Integer[] intg = added.toArray(new Integer[0]);
+							for(int i = 0; i < nc; i++){
+								mie.getUnstructuredDoc(intg[i]+"", true);
+							}
+							mie.clearServerTimes();
+							TimeSpec.reset();
+							c.clear();
+							c.resetStats();
+							break;
+						default:
+							ids = new int[last-first+1];
+							for(int i = first; i <=last; i++){
+								ids[i-first] = i;
+							}
+					}
+				}
+				else{
+					ids = new int[1];
+					ids[0] = first;
+				}
+				if(com.op.equalsIgnoreCase("get")){
+					Main.getUnstructured(mie, ids, id);
+				}
+				else if(com.op.equalsIgnoreCase("getMime")){
+					Main.getMime(mie, first, last, id);
+				}
+			}
+			else if(com.op.equalsIgnoreCase("index")){
+				boolean wait = com.args.length > 0 && 
+					(com.args[1].equalsIgnoreCase("w") ||
+					com.args[1].equalsIgnoreCase("wait")) ? true : false;
+				mie.index(true, wait);
+			}
+			else if(com.op.equalsIgnoreCase("reset")){
+				mie.resetServerCache();
+			}
+			else if(com.op.equalsIgnoreCase("clear")){
+				mie.clearServerTimes();
+			}
+		}
+		catch(IOException | MessagingException e){
+			e.printStackTrace();
+		}
 	}
 }
