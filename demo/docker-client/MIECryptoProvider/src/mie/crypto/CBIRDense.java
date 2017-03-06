@@ -24,11 +24,18 @@ public final class CBIRDense extends MacSpi {
 	private FeatureDetector detector;
 	private DescriptorExtractor extractor;
 	private Mat descriptors;
-	
+
 	private byte[] buffer;
-	float[][] encoded_features;
+	private float[][] encoded_features;
 	
 	private static int cores;
+
+	/*variables only used in extractfeatures but need to be declared here
+	  so the garbage collector doesn't collect them and free the c++ memory
+	  allocations ahead of time
+	*/
+	private MatOfKeyPoint keypoints;
+	private Mat img;
 	
 	static{
 		System.loadLibrary(Core.NATIVE_LIBRARY_NAME);
@@ -59,7 +66,6 @@ public final class CBIRDense extends MacSpi {
 			try {
 				threads[i].join();
 			} catch (InterruptedException e) {
-				// TODO Auto-generated catch block
 				e.printStackTrace();
 			}
 		}
@@ -67,7 +73,6 @@ public final class CBIRDense extends MacSpi {
 		byte_buffer.put(Utils.CBIRD);
 		byte_buffer.putInt(rows);
 		byte_buffer.putInt(m);
-
 		for(int i = 0; i < rows; i++)
 			for(int j = 0; j < m; j++)
 				byte_buffer.putFloat(encoded_features[i][j]);
@@ -87,7 +92,7 @@ public final class CBIRDense extends MacSpi {
 	
 	private void extractFeatures(){
 		///create mat from buffer
-		if(descriptors == null){
+		if(null == descriptors){
 			long start = System.nanoTime(); ///begin featureExtractor benchmark
 			Mat img_buffer = new Mat(1, buffer.length, CvType.CV_8S);
 			try{
@@ -96,9 +101,9 @@ public final class CBIRDense extends MacSpi {
 				///not so silently ignored anymore
 				e.printStackTrace();
 			}
-			Mat img = Highgui.imdecode(img_buffer, Highgui.CV_LOAD_IMAGE_COLOR);
+			img = Highgui.imdecode(img_buffer, Highgui.CV_LOAD_IMAGE_COLOR);
 			///detect features
-			MatOfKeyPoint keypoints = new MatOfKeyPoint();
+			keypoints = new MatOfKeyPoint();
 			detector.detect(img, keypoints);
 			long time = System.nanoTime()-start;///end featureExtractor benchmark
 			TimeSpec.addFeatureTime(time);
@@ -106,6 +111,7 @@ public final class CBIRDense extends MacSpi {
 			descriptors = new Mat();
 			start = System.nanoTime(); ///begin index benchmark
 			extractor.compute(img, keypoints, descriptors);
+
 			time = System.nanoTime()-start; ///end index benchmark
 			TimeSpec.addIndexTime(time);
 		}
@@ -181,19 +187,22 @@ public final class CBIRDense extends MacSpi {
 
 		@Override
 		public void run() {
+			int cols = descriptors.cols();
+			float[] feature = new float[cols];
+			float[] f = new float[1];
+			float[][] keyA = key.getA();
+			float[] keyW = key.getW();
 			for(int i = start; i < last; i++){
-				float[] feature = new float[descriptors.cols()];
-				for(int j = 0; j < descriptors.cols(); j++){
-					float[] f = new float[1];
+				for(int j = 0; j < cols; j++){
 					descriptors.get(i, j, f);
 					feature[j] = f[0];
 				}
 				float[] encoded = new float[m];
 				for(int i2 = 0; i2 < m; i2++){
 					for(int j = 0; j < k; j++){
-						encoded[i2] += key.getA()[i2][j] * feature[j];
+						encoded[i2] += keyA[i2][j] * feature[j];
 					}
-					encoded[i2] += key.getW()[i2];
+					encoded[i2] += keyW[i2];
 					encoded[i2] /= delta;
 					if((int)encoded[i2]%2 != 0)
 						encoded[i2] = 0;
@@ -203,6 +212,5 @@ public final class CBIRDense extends MacSpi {
 				encoded_features[i] = encoded;
 			}
 		}
-		
 	}
 }

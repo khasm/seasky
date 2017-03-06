@@ -53,15 +53,15 @@
  should be done before stem(...) is called.
  */
 
-static char * b;       /* buffer for word to be stemmed */
-static int k,k0,j;     /* j is a general offset into the string */
+//static char * b;       /* buffer for word to be stemmed */
+//static int k,k0,j;     /* j is a general offset into the string */
 
 /* cons(i) is TRUE <=> b[i] is a consonant. */
 
-static int cons(int i)
+static int cons(int i, char* b, int k0)
 {  switch (b[i])
     {  case 'a': case 'e': case 'i': case 'o': case 'u': return FALSE;
-        case 'y': return (i==k0) ? TRUE : !cons(i-1);
+        case 'y': return (i==k0) ? TRUE : !cons(i-1, b, k0);
         default: return TRUE;
     }
 }
@@ -77,25 +77,25 @@ static int cons(int i)
  ....
  */
 
-static int m()
+static int m(char* b, int k0, int j)
 {  int n = 0;
     int i = k0;
     while(TRUE)
     {  if (i > j) return n;
-        if (! cons(i)) break; i++;
+        if (! cons(i, b, k0)) break; i++;
     }
     i++;
     while(TRUE)
     {  while(TRUE)
     {  if (i > j) return n;
-        if (cons(i)) break;
+        if (cons(i, b, k0)) break;
         i++;
     }
         i++;
         n++;
         while(TRUE)
         {  if (i > j) return n;
-            if (! cons(i)) break;
+            if (! cons(i, b, k0)) break;
             i++;
         }
         i++;
@@ -104,17 +104,17 @@ static int m()
 
 /* vowelinstem() is TRUE <=> k0,...j contains a vowel */
 
-static int vowelinstem()
-{  int i; for (i = k0; i <= j; i++) if (! cons(i)) return TRUE;
+static int vowelinstem(char* b, int k0, int j)
+{  int i; for (i = k0; i <= j; i++) if (! cons(i, b, k0)) return TRUE;
     return FALSE;
 }
 
 /* doublec(j) is TRUE <=> j,(j-1) contain a double consonant. */
 
-static int doublec(int j)
+static int doublec(int j, char* b, int k0)
 {  if (j < k0+1) return FALSE;
     if (b[j] != b[j-1]) return FALSE;
-    return cons(j);
+    return cons(j, b, k0);
 }
 
 /* cvc(i) is TRUE <=> i-2,i-1,i has the form consonant - vowel - consonant
@@ -126,8 +126,8 @@ static int doublec(int j)
  
  */
 
-static int cvc(int i)
-{  if (i < k0+2 || !cons(i) || cons(i-1) || !cons(i-2)) return FALSE;
+static int cvc(int i, char* b, int k0)
+{  if (i < k0+2 || !cons(i, b, k0) || cons(i-1, b, k0) || !cons(i-2, b, k0)) return FALSE;
     {  int ch = b[i];
         if (ch == 'w' || ch == 'x' || ch == 'y') return FALSE;
     }
@@ -136,27 +136,30 @@ static int cvc(int i)
 
 /* ends(s) is TRUE <=> k0,...k ends with the string s. */
 
-static int ends(const char * s)
+static int ends(const char * s, char* b, int k, int k0, int* j)
 {  int length = s[0];
     if (s[length] != b[k]) return FALSE; /* tiny speed-up */
     if (length > k-k0+1) return FALSE;
     if (memcmp(b+k-length+1,s+1,length) != 0) return FALSE;
-    j = k-length;
+    *j = k-length;
     return TRUE;
 }
 
 /* setto(s) sets (j+1),...k to the characters in the string s, readjusting
  k. */
 
-static void setto(const char * s)
+static void setto(const char * s, char* b, int* k, int j)
 {  int length = s[0];
     memmove(b+j+1,s+1,length);
-    k = j+length;
+    *k = j+length;
 }
 
 /* r(s) is used further down. */
 
-static void r(const char * s) { if (m() > 0) setto(s); }
+static void r(const char * s, char* b, int* k, int k0, int j)
+{
+    if (m(b, k0, j) > 0) setto(s, b, k, j);
+}
 
 /* step1ab() gets rid of plurals and -ed or -ing. e.g.
  
@@ -180,132 +183,141 @@ static void r(const char * s) { if (m() > 0) setto(s); }
  
  */
 
-static void step1ab()
-{  if (b[k] == 's')
-{  if (ends("\04" "sses")) k -= 2; else
-    if (ends("\03" "ies")) setto("\01" "i"); else
-        if (b[k-1] != 's') k--;
+static void step1ab(char* b, int* k, int k0, int* j)
+{  if (b[*k] == 's')
+{  if (ends("\04" "sses", b, *k, k0, j)) *k -= 2; else
+    if (ends("\03" "ies", b, *k, k0, j)) setto("\01" "i", b, k, *j); else
+        if (b[*k-1] != 's') (*k)--;
 }
-    if (ends("\03" "eed")) { if (m() > 0) k--; } else
-        if ((ends("\02" "ed") || ends("\03" "ing")) && vowelinstem())
-        {  k = j;
-            if (ends("\02" "at")) setto("\03" "ate"); else
-                if (ends("\02" "bl")) setto("\03" "ble"); else
-                    if (ends("\02" "iz")) setto("\03" "ize"); else
-                        if (doublec(k))
-                        {  k--;
-                            {  int ch = b[k];
-                                if (ch == 'l' || ch == 's' || ch == 'z') k++;
+    if (ends("\03" "eed", b, *k, k0, j)) { if (m(b, k0, *j) > 0) (*k)--; } else
+        if ((ends("\02" "ed", b, *k, k0, j) || ends("\03" "ing", b, *k, k0, j)) && vowelinstem(b, k0, *j))
+        {  *k = *j;
+            if (ends("\02" "at", b, *k, k0, j)) setto("\03" "ate", b, k, *j); else
+                if (ends("\02" "bl", b, *k, k0, j)) setto("\03" "ble", b, k, *j); else
+                    if (ends("\02" "iz", b, *k, k0, j)) setto("\03" "ize", b, k, *j); else
+                        if (doublec(*k, b, k0))
+                        {  (*k)--;
+                            {  int ch = b[*k];
+                                if (ch == 'l' || ch == 's' || ch == 'z') (*k)++;
                             }
                         }
-                        else if (m() == 1 && cvc(k)) setto("\01" "e");
+                        else if (m(b, k0, *j) == 1 && cvc(*k, b, k0)) setto("\01" "e", b, k, *j);
         }
 }
 
 /* step1c() turns terminal y to i when there is another vowel in the stem. */
 
-static void step1c() { if (ends("\01" "y") && vowelinstem()) b[k] = 'i'; }
+static void step1c(char* b, int k, int k0, int *j) 
+{
+    if (ends("\01" "y", b, k, k0, j) && vowelinstem(b, k0, *j)) b[k] = 'i';
+}
 
 
 /* step2() maps double suffices to single ones. so -ization ( = -ize plus
  -ation) maps to -ize etc. note that the string before the suffix must give
  m() > 0. */
 
-static void step2() { switch (b[k-1])
+static void step2(char* b, int* k, int k0, int* j)
+{
+    switch (b[*k-1])
     {
-        case 'a': if (ends("\07" "ational")) { r("\03" "ate"); break; }
-            if (ends("\06" "tional")) { r("\04" "tion"); break; }
+        case 'a': if (ends("\07" "ational", b, *k, k0, j)) { r("\03" "ate", b, k, k0, *j); break; }
+            if (ends("\06" "tional", b, *k, k0, j)) { r("\04" "tion", b, k, k0, *j); break; }
             break;
-        case 'c': if (ends("\04" "enci")) { r("\04" "ence"); break; }
-            if (ends("\04" "anci")) { r("\04" "ance"); break; }
+        case 'c': if (ends("\04" "enci", b, *k, k0, j)) { r("\04" "ence", b, k, k0, *j); break; }
+            if (ends("\04" "anci", b, *k, k0, j)) { r("\04" "ance", b, k, k0, *j); break; }
             break;
-        case 'e': if (ends("\04" "izer")) { r("\03" "ize"); break; }
+        case 'e': if (ends("\04" "izer", b, *k, k0, j)) { r("\03" "ize", b, k, k0, *j); break; }
             break;
-        case 'l': if (ends("\03" "bli")) { r("\03" "ble"); break; } /*-DEPARTURE-*/
+        case 'l': if (ends("\03" "bli", b, *k, k0, j)) { r("\03" "ble", b, k, k0, *j); break; } /*-DEPARTURE-*/
             
             /* To match the published algorithm, replace this line with
              case 'l': if (ends("\04" "abli")) { r("\04" "able"); break; } */
             
-            if (ends("\04" "alli")) { r("\02" "al"); break; }
-            if (ends("\05" "entli")) { r("\03" "ent"); break; }
-            if (ends("\03" "eli")) { r("\01" "e"); break; }
-            if (ends("\05" "ousli")) { r("\03" "ous"); break; }
+            if (ends("\04" "alli", b, *k, k0, j)) { r("\02" "al", b, k, k0, *j); break; }
+            if (ends("\05" "entli", b, *k, k0, j)) { r("\03" "ent", b, k, k0, *j); break; }
+            if (ends("\03" "eli", b, *k, k0, j)) { r("\01" "e", b, k, k0, *j); break; }
+            if (ends("\05" "ousli", b, *k, k0, j)) { r("\03" "ous", b, k, k0, *j); break; }
             break;
-        case 'o': if (ends("\07" "ization")) { r("\03" "ize"); break; }
-            if (ends("\05" "ation")) { r("\03" "ate"); break; }
-            if (ends("\04" "ator")) { r("\03" "ate"); break; }
+        case 'o': if (ends("\07" "ization", b, *k, k0, j)) { r("\03" "ize", b, k, k0, *j); break; }
+            if (ends("\05" "ation", b, *k, k0, j)) { r("\03" "ate", b, k, k0, *j); break; }
+            if (ends("\04" "ator", b, *k, k0, j)) { r("\03" "ate", b, k, k0, *j); break; }
             break;
-        case 's': if (ends("\05" "alism")) { r("\02" "al"); break; }
-            if (ends("\07" "iveness")) { r("\03" "ive"); break; }
-            if (ends("\07" "fulness")) { r("\03" "ful"); break; }
-            if (ends("\07" "ousness")) { r("\03" "ous"); break; }
+        case 's': if (ends("\05" "alism", b, *k, k0, j)) { r("\02" "al", b, k, k0, *j); break; }
+            if (ends("\07" "iveness", b, *k, k0, j)) { r("\03" "ive", b, k, k0, *j); break; }
+            if (ends("\07" "fulness", b, *k, k0, j)) { r("\03" "ful", b, k, k0, *j); break; }
+            if (ends("\07" "ousness", b, *k, k0, j)) { r("\03" "ous", b, k, k0, *j); break; }
             break;
-        case 't': if (ends("\05" "aliti")) { r("\02" "al"); break; }
-            if (ends("\05" "iviti")) { r("\03" "ive"); break; }
-            if (ends("\06" "biliti")) { r("\03" "ble"); break; }
+        case 't': if (ends("\05" "aliti", b, *k, k0, j)) { r("\02" "al", b, k, k0, *j); break; }
+            if (ends("\05" "iviti", b, *k, k0, j)) { r("\03" "ive", b, k, k0, *j); break; }
+            if (ends("\06" "biliti", b, *k, k0, j)) { r("\03" "ble", b, k, k0, *j); break; }
             break;
-        case 'g': if (ends("\04" "logi")) { r("\03" "log"); break; } /*-DEPARTURE-*/
+        case 'g': if (ends("\04" "logi", b, *k, k0, j)) { r("\03" "log", b, k, k0, *j); break; } /*-DEPARTURE-*/
             
             /* To match the published algorithm, delete this line */
             
-    } }
+    }
+}
 
 /* step3() deals with -ic-, -full, -ness etc. similar strategy to step2. */
 
-static void step3() { switch (b[k])
+static void step3(char* b, int* k, int k0, int* j)
+{
+    switch (b[*k])
     {
-        case 'e': if (ends("\05" "icate")) { r("\02" "ic"); break; }
-            if (ends("\05" "ative")) { r("\00" ""); break; }
-            if (ends("\05" "alize")) { r("\02" "al"); break; }
+        case 'e': if (ends("\05" "icate", b, *k, k0, j)) { r("\02" "ic", b, k, k0, *j); break; }
+            if (ends("\05" "ative", b, *k, k0, j)) { r("\00" "", b, k, k0, *j); break; }
+            if (ends("\05" "alize", b, *k, k0, j)) { r("\02" "al", b, k, k0, *j); break; }
             break;
-        case 'i': if (ends("\05" "iciti")) { r("\02" "ic"); break; }
+        case 'i': if (ends("\05" "iciti", b, *k, k0, j)) { r("\02" "ic", b, k, k0, *j); break; }
             break;
-        case 'l': if (ends("\04" "ical")) { r("\02" "ic"); break; }
-            if (ends("\03" "ful")) { r("\00" ""); break; }
+        case 'l': if (ends("\04" "ical", b, *k, k0, j)) { r("\02" "ic", b, k, k0, *j); break; }
+            if (ends("\03" "ful", b, *k, k0, j)) { r("\00" "", b, k, k0, *j); break; }
             break;
-        case 's': if (ends("\04" "ness")) { r("\00" ""); break; }
+        case 's': if (ends("\04" "ness", b, *k, k0, j)) { r("\00" "", b, k, k0, *j); break; }
             break;
-    } }
+    }
+}
 
 /* step4() takes off -ant, -ence etc., in context <c>vcvc<v>. */
 
-static void step4()
-{  switch (b[k-1])
-    {  case 'a': if (ends("\02" "al")) break; return;
-        case 'c': if (ends("\04" "ance")) break;
-            if (ends("\04" "ence")) break; return;
-        case 'e': if (ends("\02" "er")) break; return;
-        case 'i': if (ends("\02" "ic")) break; return;
-        case 'l': if (ends("\04" "able")) break;
-            if (ends("\04" "ible")) break; return;
-        case 'n': if (ends("\03" "ant")) break;
-            if (ends("\05" "ement")) break;
-            if (ends("\04" "ment")) break;
-            if (ends("\03" "ent")) break; return;
-        case 'o': if (ends("\03" "ion") && j >= k0 && (b[j] == 's' || b[j] == 't')) break;
-            if (ends("\02" "ou")) break; return;
+static void step4(char* b, int* k, int k0, int* j)
+{  switch (b[*k-1])
+    {  case 'a': if (ends("\02" "al", b, *k, k0, j)) break; return;
+        case 'c': if (ends("\04" "ance", b, *k, k0, j)) break;
+            if (ends("\04" "ence", b, *k, k0, j)) break; return;
+        case 'e': if (ends("\02" "er", b, *k, k0, j)) break; return;
+        case 'i': if (ends("\02" "ic", b, *k, k0, j)) break; return;
+        case 'l': if (ends("\04" "able", b, *k, k0, j)) break;
+            if (ends("\04" "ible", b, *k, k0, j)) break; return;
+        case 'n': if (ends("\03" "ant", b, *k, k0, j)) break;
+            if (ends("\05" "ement", b, *k, k0, j)) break;
+            if (ends("\04" "ment", b, *k, k0, j)) break;
+            if (ends("\03" "ent", b, *k, k0, j)) break; return;
+        case 'o': if (ends("\03" "ion", b, *k, k0, j) && *j >= k0 && (b[*j] == 's' || b[*j] == 't')) break;
+            if (ends("\02" "ou", b, *k, k0, j)) break; return;
             /* takes care of -ous */
-        case 's': if (ends("\03" "ism")) break; return;
-        case 't': if (ends("\03" "ate")) break;
-            if (ends("\03" "iti")) break; return;
-        case 'u': if (ends("\03" "ous")) break; return;
-        case 'v': if (ends("\03" "ive")) break; return;
-        case 'z': if (ends("\03" "ize")) break; return;
+        case 's': if (ends("\03" "ism", b, *k, k0, j)) break; return;
+        case 't': if (ends("\03" "ate", b, *k, k0, j)) break;
+            if (ends("\03" "iti", b, *k, k0, j)) break; return;
+        case 'u': if (ends("\03" "ous", b, *k, k0, j)) break; return;
+        case 'v': if (ends("\03" "ive", b, *k, k0, j)) break; return;
+        case 'z': if (ends("\03" "ize", b, *k, k0, j)) break; return;
         default: return;
     }
-    if (m() > 1) k = j;
+    if (m(b, k0, *j) > 1) *k = *j;
 }
 
 /* step5() removes a final -e if m() > 1, and changes -ll to -l if
  m() > 1. */
 
-static void step5()
-{  j = k;
-    if (b[k] == 'e')
-    {  int a = m();
-        if (a > 1 || a == 1 && !cvc(k-1)) k--;
+static void step5(char* b, int* k, int k0, int* j)
+{  *j = *k;
+    if (b[*k] == 'e')
+    {  int a = m(b, k0, *j);
+        if (a > 1 || a == 1 && !cvc(*k-1, b, k0)) (*k)--;
     }
-    if (b[k] == 'l' && doublec(k) && m() > 1) k--;
+    if (b[*k] == 'l' && doublec(*k, b, k0) && m(b, k0, *j) > 1) (*k)--;
 }
 
 /* In stem(p,i,j), p is a char pointer, and the string to be stemmed is from
@@ -318,17 +330,27 @@ static void step5()
  */
 
 static int stem(char * p, int i, int j)
-{  b = p; k = j; k0 = i; /* copy the parameters into statics */
-    if (k <= k0+1) return k; /*-DEPARTURE-*/
+{
+    //b = p; k = j; k0 = i; /* copy the parameters into statics */
+    char* b = p;
+    int k = j;
+    int k0 = i;
+    int j2;
+    //if (k <= k0+1) return k; /*-DEPARTURE-*/
+    if (j <= i+1) return j; /*-DEPARTURE-*/
     
     /* With this line, strings of length 1 or 2 don't go through the
      stemming process, although no mention is made of this in the
      published algorithm. Remove the line to match the published
      algorithm. */
     
-    step1ab();
+    step1ab(b, &k, k0, &j2);
     if (k > k0) {
-        step1c(); step2(); step3(); step4(); step5();
+        step1c(b, k, k0, &j2);
+        step2(b, &k, k0, &j2);
+        step3(b, &k, k0, &j2);
+        step4(b, &k, k0, &j2);
+        step5(b, &k, k0, &j2);
     }
     return k;
 }
