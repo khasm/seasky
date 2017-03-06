@@ -120,7 +120,5 @@ public interface MIE {
 	public boolean clearServerTimes();
 
 	public void resetServerCache();
-
-	public long getNetworkTime();
 	
 }

@@ -100,11 +100,13 @@ public class MIECryptoModule implements MIECrypto {
 	@Override
 	public byte[] encryptMime(byte[] plain_text) throws IllegalBlockSizeException {
 		try {
-			String transformation = cbirdParams.getCipherAlgorithm()+"/"+cbirdParams.getCipherMode()+"/"+cbirdParams.getCipherPadding();
+			String transformation = cbirdParams.getCipherAlgorithm()+"/"+cbirdParams.getCipherMode()+
+			"/"+cbirdParams.getCipherPadding();
 			Cipher cipher = Cipher.getInstance(transformation);
 			cipher.init(Cipher.ENCRYPT_MODE, dkey.getCipherSpec(), cbirdParams.getCipherParameters());
 			return cipher.doFinal(plain_text);
-		} catch (NoSuchAlgorithmException | NoSuchPaddingException | InvalidKeyException | InvalidAlgorithmParameterException | BadPaddingException e) {
+		} catch (NoSuchAlgorithmException | NoSuchPaddingException | InvalidKeyException |
+			InvalidAlgorithmParameterException | BadPaddingException e) {
 			e.printStackTrace();
 			return null;
 		}
@@ -113,11 +115,13 @@ public class MIECryptoModule implements MIECrypto {
 	@Override
 	public byte[] decryptMime(byte[] cipher_text) throws IllegalBlockSizeException, BadPaddingException {
 		try {
-			String transformation = cbirdParams.getCipherAlgorithm()+"/"+cbirdParams.getCipherMode()+"/"+cbirdParams.getCipherPadding();
+			String transformation = cbirdParams.getCipherAlgorithm()+"/"+cbirdParams.getCipherMode()+"/"
+			+cbirdParams.getCipherPadding();
 			Cipher cipher = Cipher.getInstance(transformation);
 			cipher.init(Cipher.DECRYPT_MODE, dkey.getCipherSpec(), cbirdParams.getCipherParameters());
 			return cipher.doFinal(cipher_text);
-		} catch (NoSuchAlgorithmException | NoSuchPaddingException | InvalidKeyException | InvalidAlgorithmParameterException e) {
+		} catch (NoSuchAlgorithmException | NoSuchPaddingException | InvalidKeyException |
+			InvalidAlgorithmParameterException e) {
 			e.printStackTrace();
 			return null;
 		}
@@ -156,31 +160,36 @@ public class MIECryptoModule implements MIECrypto {
 		}
 	}
 	
-	private byte[] encrypt(byte[] plain_text, String transformation, SecretKey key, CBIRCipherParameterSpec params) throws IllegalBlockSizeException{
+	private byte[] encrypt(byte[] plain_text, String transformation, SecretKey key, 
+		CBIRCipherParameterSpec params) throws IllegalBlockSizeException{
 		try {
 			Cipher cipher = Cipher.getInstance(transformation);
 			cipher.init(Cipher.ENCRYPT_MODE, key, params);
 			return cipher.doFinal(plain_text);
-		} catch (InvalidKeyException | InvalidAlgorithmParameterException | BadPaddingException | NoSuchAlgorithmException | NoSuchPaddingException e) {
+		} catch (InvalidKeyException | InvalidAlgorithmParameterException | BadPaddingException
+		| NoSuchAlgorithmException | NoSuchPaddingException e) {
 			///should not happen at this point
 			e.printStackTrace();
 			return null;
 		}
 	}
 	
-	private byte[] decrypt(byte[] cipher_text, String transformation, SecretKey key, CBIRCipherParameterSpec params) throws IllegalBlockSizeException, BadPaddingException{
+	private byte[] decrypt(byte[] cipher_text, String transformation, SecretKey key, 
+		CBIRCipherParameterSpec params) throws IllegalBlockSizeException, BadPaddingException{
 		try {
 			Cipher cipher = Cipher.getInstance(transformation);
 			cipher.init(Cipher.DECRYPT_MODE, key, params);
 			return cipher.doFinal(cipher_text);
-		} catch (InvalidKeyException | InvalidAlgorithmParameterException | NoSuchAlgorithmException | NoSuchPaddingException e) {
+		} catch (InvalidKeyException | InvalidAlgorithmParameterException | 
+			NoSuchAlgorithmException | NoSuchPaddingException e) {
 			///should not happen at this point
 			e.printStackTrace();
 			return null;
 		}
 	}
 	
-	private CBIRCipherKey setup(String fileName, String transformation) throws IOException, NoSuchAlgorithmException, NoSuchPaddingException{
+	private CBIRCipherKey setup(String fileName, String transformation) throws IOException, 
+		NoSuchAlgorithmException, NoSuchPaddingException{
 		File file = new File(fileName);
 		CBIRCipherKey key = null;
 		if(file.exists()){

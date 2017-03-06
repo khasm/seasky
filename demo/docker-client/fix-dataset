@@ -1,12 +1,22 @@
 #!/bin/bash
 
 I=0
-for x in $(ls /datasets/flickr_imgs/*.jpg); do
-    mv $x /datasets/flickr_imgs/im"$I".jpg
+for x in $(ls /datasets/imgs/*.jpg); do
+    mv $x /datasets/imgs/im"$I".jpg
     I=$((I+1))
 done
 T=0
-for x in $(ls /datasets/flickr_tags/*.txt); do
-    mv $x /datasets/flickr_tags/tags"$T".txt
+for x in $(ls /datasets/tags/*.txt); do
+    mv $x /datasets/tags/tags"$T".txt
     T=$((T+1))
+done
+M=0
+for x in $(ls /datasets/mime/*.mime); do
+    mv $x /datasets/mime/"$M".mime
+    M=$((M+1))
+done
+M=0
+for x in $(ls /datasets/dmime/*.mime); do
+    mv $x /datasets/dmime/"$M".mime
+    M=$((M+1))
 done

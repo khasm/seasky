@@ -114,16 +114,25 @@ function clear_times {
         clear > /dev/null
 }
 
+function custom {
+    echo "$@"
+    java -Djava.library.path=/usr/local/share/OpenCV/java -cp \
+        bin:/usr/local/share/OpenCV/java/opencv-2410.jar mie.Main "$@"
+}
+
 if [ "$1" == "--help" ] || [ "$1" == "" ] || [ "$1" == "-h" ]; then
     echo "Usage: docker run mie_client [ip <address>] <command1> [<command2> ...]"
     echo "Commands:"
-    echo "add:                      Performs an upload test"
-    echo "index:                    Performs an index test"
-    echo "search:                   Performs a search test"
-    echo "get [cache_mode]:         Performs a download test"
-    echo "print:                    Prints measurements of the server"
-    echo "clear:                    Clears measured times"
-    echo "full [cache_mode]:        Performs add, index, search and get commands"
+    echo "add:                          Performs an upload test"
+    echo "index:                        Performs an index test"
+    echo "search:                       Performs a search test"
+    echo "get [cache_mode]:             Performs a download test"
+    echo "print:                        Prints measurements of the server"
+    echo "clear:                        Clears measured times"
+    echo "full [cache_mode]:            Performs add, index, search and get commands"
+    echo "custom <arg1 [<arg2>...]>:    Performs a custom test, args will be passed directly to client.
+                              No other commands after this one will be accepted. The ip address
+                              specified outside the arguments for this command will be ignored"
     echo ""
     echo "cache_mode is one of cache_client80, cache_server100, cache_client100, cache_server100
 or double_cache."
@@ -144,19 +153,19 @@ if [ "$1" == "ip" ]; then
     shift 2
 fi
 
-stat /datasets/flickr_imgs > /dev/null 2>&1
+stat /datasets/imgs > /dev/null 2>&1
 if [ "$?" != 0 ]; then
-    echo "/datasets/flickr_imgs not found"
+    echo "/datasets/imgs not found"
     exit
 fi
-stat /datasets/flickr_tags > /dev/null 2>&1
+stat /datasets/tags > /dev/null 2>&1
 if [ "$?" != 0 ]; then
-    echo "/datasets/flickr_tags not found"
+    echo "/datasets/tags not found"
     exit
 fi
 
-max_imgs=$(ls /datasets/flickr_imgs/*.jpg | grep -E im[0-9]+.jpg | wc -l)
-max_tags=$(ls /datasets/flickr_tags/*.txt | grep -E tags[0-9]+.txt | wc -l)
+max_imgs=$(ls /datasets/imgs/*.jpg | grep -E im[0-9]+.jpg | wc -l)
+max_tags=$(ls /datasets/tags/*.txt | grep -E tags[0-9]+.txt | wc -l)
 
 if [ "$max_imgs" -gt "$max_tags" ]; then
     max_documents=$max_tags
@@ -227,6 +236,10 @@ while [ "$1" != "" ]; do
             get
             shift
         fi
+    elif [ "$1" == "custom" ]; then
+        shift
+        custom "$@"
+        exit
     else
         echo "Unrecognized option: "$1
         exit

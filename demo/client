@@ -1,0 +1,18 @@
+#!/bin/bash
+
+LOG=$PWD"/logs"
+DATASET=$PWD"/datasets"
+
+stat $DATASET > /dev/null 2>&1
+if [ "$?" != 0 ]; then
+	echo "The dataset dir was not found. Exiting"
+	exit 1
+fi
+
+stat $LOG > /dev/null 2>&1
+if [ "$?" != 0 ]; then
+	echo "The logs directory not found, creating it."
+	mkdir logs
+fi
+
+docker run --rm --net=host --name=client -v $LOG":/logs" -v $DATASET":/datasets" mie_client custom "$@"
