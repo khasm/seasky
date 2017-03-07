@@ -1,0 +1,15 @@
+This is a standalone parser to convert datasets of images into a structured dataset that can be recognized by the test client of seasky. It outputs datasets in mime or unstructured documents formats. The unstructured documents are limited to one image per document. If a dataset has several images associated with the same document then the final dataset with have one document per image, with document text repeated on all of them. This limitation doesn't apply to mime datasets which can have several images.
+
+The parser is composed of 3 main components: parsers, converters and writers. The parsers job is to read the original dataset and produce documents represented in standard format, which will then be sent to the converter so the images are converted to jpg images. The result will then be sent to the writer which will write the final document.
+
+The parsers must implement the DatasetParser interface and two main functions: hasNext and getNextDoc. It works as an iterator which allows it to keep a minimal state in memory and read only the required files for one document at a time. A third operation is defined in the interface however is up to the parser to decide what to do with it. The dataset location might just be hardcoded in the parser.
+
+The converters must implement the Converter interface and the function convert. It converts one image at a time.
+
+The writers must implement the DocumentWriter interface with the writeDocument and setOutDir functions. As with the parser, the setOutDir only needs to be presented but the write location can just be hardcoded in the writer itself.
+
+New parsers, converters and writers can be easily added by putting either the .java or .class file in the respective directory as long they implement the required interfaces. Any external libraries required (.jar files) must go in the libs folder. The main program will compile and load dinamically all java and class files in the parsers, converters and writers folders as well any jar files in the libs directory (or subfolders) and present a selection of which parser, converter and writer to use. Any compilation errors will also be presented if they occur. Compilation of .java classes will not occur if a correspondent .class is found and is more recent than the .java file.
+
+Parsers for 4 datasets are already implemented: FLICKR-MIR, STARE, CBIS and PH2. To convert any of those datasets simply put the files in the dataset folder. A Converter that support all formats in those datasets are also implemented, however extra libraries are required for CBIS. Instructions for their installation are present in the file "binary-builds.html" retrieved from https://java.net/projects/jai-imageio.
+
+To run the program simply execute run_parser. It will add all the jar files found in the libs folder to the classpath before running the program.

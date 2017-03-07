@@ -1,0 +1,36 @@
+Release Notes - dcm4che2 - Version dcm4che-2.0.29
+http://www.dcm4che.org/jira/secure/ReleaseNote.jspa?projectId=10001&version=10984
+
+** Bug
+    * [DCM-151] - Auto window levelling calculation is off by 0.5, as is application of window level
+    * [DCM-409] - DicomImageReader cannot render certain 12 bit JPEGs
+    * [DCM-510] - lossy j2k images decompressed with low quality
+    * [DCM-525] - Compressed pixel data by dcm4che have an odd length
+    * [DCM-539] - LookupTable does not handle ushort to byte conversion correctly for more than one channel
+    * [DCM-540] - Association generates a unique name in a way that is not thread-safe
+    * [DCM-572] - FileCache at limits of space can lose files currently being written
+    * [DCM-575] - ItemParser very slow for large multiframes
+    * [DCM-576] - DicomInputStream readBytes(int) fails reading more than 64 MiB
+    * [DCM-584] - FileCache.free() throws NPE if directory is not readable.
+    * [DCM-585] - FileCache.free() may leave files that should be deleted.
+    * [DCM-586] - LookupTable with pixel padding on Monochrome1 images shows up white background
+    * [DCM-587] - Non-monotone Look-up table (LUT) causes severe image quality issues
+    * [DCM-589] - VR=UN replacement causes failure of reading a DICOM file for items which should be sequences but are UN
+    * [DCM-600] - CombineDicomObject does not properly handle private tags
+    * [DCM-601] - YBR_ICT and YBR_RCT not recognized when decoding images
+    * [DCM-602] - Multi-segment images not supported any longer
+
+
+** Improvement
+    * [DCM-541] - Make the association serial number available via a Getter.
+    * [DCM-583] - provide hooks for specialized DicomImageReader implementations to manipulate the parsed header.
+    * [DCM-588] - DicomOutputStream needs method to write an object unfiltered
+    * [DCM-594] - Allow decoding images with the image encoded as JPEG, but the transfer syntax incorrectly being LEI
+    * [DCM-599] - Add option to offer multiple Transfer Syntaxes in on Presentation Context in Association RQ
+
+
+
+
+
+
+

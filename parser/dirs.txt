@@ -1,0 +1,2 @@
+inputDir=dataset
+outputDir=output

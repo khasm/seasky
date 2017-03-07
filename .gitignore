@@ -8,3 +8,6 @@ demo/docker-client/datasets/flickr_tags/*.txt
 docker-mie/mie/Server/Makefile.2
 demo/docker-client/MIELibrary/keys
 demo/docker-client/MIELibrary/test
+parser/dataset
+parser/output
+*.class

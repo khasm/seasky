@@ -1,0 +1,7 @@
+#!/bin/sh
+
+LIBS="bin"
+for x in `find libs -name *.jar`; do
+	LIBS=$LIBS":"$x
+done
+java -cp $LIBS Main
