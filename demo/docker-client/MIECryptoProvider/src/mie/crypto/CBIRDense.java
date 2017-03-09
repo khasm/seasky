@@ -46,7 +46,8 @@ public final class CBIRDense extends MacSpi {
 	protected byte[] engineDoFinal() {
 		///create mat from buffer
 		extractFeatures();
-		long startBenchmark = System.nanoTime(); ///start crypto benchmark
+		//long startBenchmark = System.nanoTime(); ///start crypto benchmark
+		TimeSpec.startCbirEncryptionTime();
 		int rows = descriptors.rows();
 		//System.out.println("Rows: "+rows);
 		encoded_features = new float[rows][];
@@ -77,8 +78,9 @@ public final class CBIRDense extends MacSpi {
 			for(int j = 0; j < m; j++)
 				byte_buffer.putFloat(encoded_features[i][j]);
 		encoded_features = null;
-		long time = System.nanoTime()-startBenchmark;///end crypto benchmark
-		TimeSpec.addCbirEncryptionTime(time);
+		TimeSpec.addCbirEncryptionTime();
+		/*long time = System.nanoTime()-startBenchmark;///end crypto benchmark
+		TimeSpec.addCbirEncryptionTime(time);*/
 		engineReset();
 		return byte_buffer.array();
 	}
@@ -93,7 +95,8 @@ public final class CBIRDense extends MacSpi {
 	private void extractFeatures(){
 		///create mat from buffer
 		if(null == descriptors){
-			long start = System.nanoTime(); ///begin featureExtractor benchmark
+			//long start = System.nanoTime(); ///begin featureExtractor benchmark
+			TimeSpec.startFeatureTime();
 			Mat img_buffer = new Mat(1, buffer.length, CvType.CV_8S);
 			try{
 			    img_buffer.put(0, 0, buffer);
@@ -105,15 +108,17 @@ public final class CBIRDense extends MacSpi {
 			///detect features
 			keypoints = new MatOfKeyPoint();
 			detector.detect(img, keypoints);
-			long time = System.nanoTime()-start;///end featureExtractor benchmark
-			TimeSpec.addFeatureTime(time);
+			//long time = System.nanoTime()-start;///end featureExtractor benchmark
+			//TimeSpec.addFeatureTime(time);
+			TimeSpec.addFeatureTime();
 			///extract features
 			descriptors = new Mat();
-			start = System.nanoTime(); ///begin index benchmark
+			//long start = System.nanoTime(); ///begin index benchmark
+			TimeSpec.startIndexTime();
 			extractor.compute(img, keypoints, descriptors);
-
-			time = System.nanoTime()-start; ///end index benchmark
-			TimeSpec.addIndexTime(time);
+			TimeSpec.addIndexTime();
+			//long time = System.nanoTime()-start; ///end index benchmark
+			//TimeSpec.addIndexTime(time);
 		}
 	}
 

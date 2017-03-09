@@ -39,9 +39,6 @@ import mie.crypto.TimeSpec;
 public class Main {
 
 	static long networkTime = 0;
-	static long networkTimeStart = 0;
-	static int networkThreads = 0;
-	static final Object networkTimeLock = new Object();
 	static long indexTime = 0;
 	static long encryptionTime = 0;
 	static long featureExtractionTime = 0;
@@ -203,6 +200,7 @@ public class Main {
 					for(String key: stats.keySet()){
 						System.out.println(key+": "+stats.get(key));
 					}
+					networkTime += mie.getNetworkTime();
 					printStats();
 				}
 				else if(command.op.equalsIgnoreCase("reset") ||
@@ -232,17 +230,6 @@ public class Main {
 				logger.println(entry.getKey()+": "+entry.getValue());
 			}
 			logger.close();
-			/*System.out.printf("Host: %s\n", ip);
-			System.out.printf("Cache: %s\n", useCache);
-			System.out.printf("Dataset Path: %s\n", datasetPath);
-			System.out.printf("Threads: %d\n", n_threads);
-			System.out.printf("Commands:\n");
-			for(Command com: queue){
-				System.out.printf("%s ", com.op);
-				for(String arg: com.args)
-					System.out.printf("%s ", arg);
-				System.out.println();
-			}*/
 		}
 	}
 
@@ -278,20 +265,17 @@ public class Main {
 				int min = Integer.parseInt(com.args[0]);
 				int max = Integer.parseInt(com.args[1]);
 				int nDocs = max-min + 1;
-				if(nDocs <= maxDocs){
-					int reqDocs = nDocs / n_threads;
-					int first = i * reqDocs;
-					int last = first + reqDocs - 1;
-					if(last > max)
-						last = max;
-					if(com.args.length == 2)
-						c = new Command(com.op, new String[]{""+first, ""+last});
-					else
-						c = new Command(com.op, new String[]{""+first, ""+last, com.args[2]});
-				}
-				else{
-					//TODO
-				}
+				if(maxDocs < nDocs)
+					nDocs = maxDocs;
+				int reqDocs = nDocs % n_threads == 0 ? nDocs / n_threads : nDocs / n_threads +1;
+				int first = i * reqDocs;
+				int last = first + reqDocs - 1;
+				if(last > max)
+					last = max;
+				if(com.args.length == 2)
+					c = new Command(com.op, new String[]{""+first, ""+last});
+				else
+					c = new Command(com.op, new String[]{""+first, ""+last, com.args[2]});
 			}
 			System.out.printf("Starting thread %d with command %s", i, c.op);
 			if(c.args.length > 0){
@@ -310,7 +294,7 @@ public class Main {
 				System.out.printf("Waiting for thread %d\n", i);
 				clients[i].join();
 			}
-			totalTime = System.nanoTime()-start;
+			totalTime += System.nanoTime()-start;
 		}
 		catch(InterruptedException e){
 			e.printStackTrace();

@@ -102,7 +102,8 @@ public final class CBIRSparse extends MacSpi {
 	}
 
 	private byte[] processWords(){
-		long start = System.nanoTime(); ///start crypto benchmark
+		//long start = System.nanoTime(); ///start crypto benchmark
+		TimeSpec.startCbirEncryptionTime();
 		byte[] encoded = new byte[words.size()*20+9];
 		ByteBuffer buf = ByteBuffer.wrap(encoded);
 		buf.put(Utils.CBIRS);
@@ -116,13 +117,15 @@ public final class CBIRSparse extends MacSpi {
 			mac.reset();
 		}
 		words.clear();
-		long time = System.nanoTime()-start; ///end crypto benchmark
-		TimeSpec.addCbirEncryptionTime(time);
+		TimeSpec.addCbirEncryptionTime();
+		/*long time = System.nanoTime()-start; ///end crypto benchmark
+		TimeSpec.addCbirEncryptionTime(time);*/
 		return encoded;
 	}
 	
 	private void processBuffer(){
-		long start = System.nanoTime(); ///start feature extraction benchmark
+		//long start = System.nanoTime(); ///start feature extraction benchmark
+		TimeSpec.startFeatureTime();
 		int i = 0, keep = 0;
 		int j;
 		byte[] tmp_buffer = new byte[INC];
@@ -170,8 +173,9 @@ public final class CBIRSparse extends MacSpi {
 			}
 			buffer = b;
 		}
-		long time = System.nanoTime()-start;///end feature extraction benchmark
-		TimeSpec.addFeatureTime(time);
+		//long time = System.nanoTime()-start;///end feature extraction benchmark
+		//TimeSpec.addFeatureTime(time);
+		TimeSpec.addFeatureTime();
 	}
 	
 	private boolean isStopword(String s){

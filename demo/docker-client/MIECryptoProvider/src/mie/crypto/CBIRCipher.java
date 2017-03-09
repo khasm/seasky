@@ -66,7 +66,8 @@ public abstract class CBIRCipher extends CipherSpi {
 				cbir_length = cbir.getMacLength();
 				total = 5 + cbir_length + cipher.getOutputSize(inputLen);
 				bb = ByteBuffer.allocate(total);
-				long start = System.nanoTime();///start crypto benchmark
+				//long start = System.nanoTime();///start crypto benchmark
+				TimeSpec.startSymmetricEncryptionTime();
 				try{
 					cipher.doFinal(input, inputOffset, inputLen, bb.array(), 5 +
 						cbir_length);
@@ -74,23 +75,26 @@ public abstract class CBIRCipher extends CipherSpi {
 				catch(ShortBufferException e){
 					System.err.println("CBIRCipher.java:71::"+e.getMessage());
 				}
-				long time = System.nanoTime()-start;///end crypto benchmark
-				TimeSpec.addSymmetricEncryptionTime(time);
+				TimeSpec.addSymmetricEncryptionTime();
+				/*long time = System.nanoTime()-start;///end crypto benchmark
+				TimeSpec.addSymmetricEncryptionTime(time);*/
 			}
 			else{
 				///tested
 				cbir_length = cbir.getMacLength();
 				total = 5 + cbir_length + cipher.getOutputSize(0);
 				bb = ByteBuffer.allocate(total);
-				long start = System.nanoTime();///start crypto benchmark
+				//long start = System.nanoTime();///start crypto benchmark
+				TimeSpec.startSymmetricEncryptionTime();
 				try{
 					cipher.doFinal(bb.array(), 5 + cbir_length);
 				}
 				catch(ShortBufferException e){
 					System.err.println("CBIRCipher.java:87::"+e.getMessage());
 				}
-				long time = System.nanoTime()-start;///end crypto benchmark
-				TimeSpec.addSymmetricEncryptionTime(time);
+				TimeSpec.addSymmetricEncryptionTime();
+				/*long time = System.nanoTime()-start;///end crypto benchmark
+				TimeSpec.addSymmetricEncryptionTime(time);*/
 			}
 			try{
 				cbir.doFinal(bb.array(), 5);
@@ -98,28 +102,34 @@ public abstract class CBIRCipher extends CipherSpi {
 			catch(ShortBufferException e){
 				System.err.println("CBIRCipher.java:96::"+e.getMessage());
 			}
-			long start = System.nanoTime();///start misc benchmark
+			//long start = System.nanoTime();///start misc benchmark
+			TimeSpec.startMiscEncryptionTime();
 			bb.position(0);
 			bb.put(Utils.FULL_CIPHER);
 			bb.putInt(cbir_length);
-			long time = System.nanoTime()-start;///end misc benchmark
-			TimeSpec.addMiscEncryptionTime(time);
+			TimeSpec.addMiscEncryptionTime();
+			/*long time = System.nanoTime()-start;///end misc benchmark
+			TimeSpec.addMiscEncryptionTime(time);*/
 			this.reset();
 			return bb.array();
 		case(Cipher.DECRYPT_MODE):
 			if(input != null){
 				///tested
-				long start2 = System.nanoTime();///start crypto benchmark
+				//long start2 = System.nanoTime();///start crypto benchmark
+				TimeSpec.startSymmetricEncryptionTime();
 				cipherOutput = cipher.doFinal(input, inputOffset, inputLen);
-				long time2 = System.nanoTime()-start2;///end crypto benchmark
-				TimeSpec.addSymmetricEncryptionTime(time2);
+				TimeSpec.addSymmetricEncryptionTime();
+				/*long time2 = System.nanoTime()-start2;///end crypto benchmark
+				TimeSpec.addSymmetricEncryptionTime(time2);*/
 			}
 			else{
 				///tested
-				long start2 = System.nanoTime();///start crypto benchmark
+				//long start2 = System.nanoTime();///start crypto benchmark
+				TimeSpec.startSymmetricEncryptionTime();
 				cipherOutput = cipher.doFinal();
-				long time2 = System.nanoTime()-start2;///end crypto benchmark
-				TimeSpec.addSymmetricEncryptionTime(time2);
+				TimeSpec.addSymmetricEncryptionTime();
+				/*long time2 = System.nanoTime()-start2;///end crypto benchmark
+				TimeSpec.addSymmetricEncryptionTime(time2);*/
 			}
 			this.reset();
 			return cipherOutput;
@@ -148,33 +158,41 @@ public abstract class CBIRCipher extends CipherSpi {
 				throw new ShortBufferException();
 			}
 			cbir.doFinal(output, outputOffset + 5);
-			long start = System.nanoTime();///start crypto benchmark
+			//long start = System.nanoTime();///start crypto benchmark
+			TimeSpec.startSymmetricEncryptionTime();
 			cipher.doFinal(input, inputOffset, inputLen, output, outputOffset + 
 				5 + cbir_length);
-			long time = System.nanoTime()-start;///end crypto benchmark
-			TimeSpec.addSymmetricEncryptionTime(time);
-			start = System.nanoTime();///start misc benchmark
+			TimeSpec.addSymmetricEncryptionTime();
+			/*long time = System.nanoTime()-start;///end crypto benchmark
+			TimeSpec.addSymmetricEncryptionTime(time);*/
+			//start = System.nanoTime();///start misc benchmark
+			TimeSpec.startMiscEncryptionTime();
 			bb = ByteBuffer.wrap(output, outputOffset, output.length - outputOffset);
 			bb.put(Utils.FULL_CIPHER);
 			bb.putInt(cbir_length);
-			time = System.nanoTime()-start;///end misc benchmark
-			TimeSpec.addMiscEncryptionTime(time);
+			TimeSpec.addMiscEncryptionTime();
+			/*time = System.nanoTime()-start;///end misc benchmark
+			TimeSpec.addMiscEncryptionTime(time);*/
 			this.reset();
 			return total;
 		case(Cipher.DECRYPT_MODE):
 			if(input != null){
 				///tested
-				long start2 = System.nanoTime();///start crypto benchmark
+				//long start2 = System.nanoTime();///start crypto benchmark
+				TimeSpec.startSymmetricEncryptionTime();
 				r = cipher.doFinal(input, inputOffset, inputLen, output, outputOffset);
-				long time2 = System.nanoTime()-start2;///end crypto benchmark
-				TimeSpec.addSymmetricEncryptionTime(time2);
+				TimeSpec.addSymmetricEncryptionTime();
+				/*long time2 = System.nanoTime()-start2;///end crypto benchmark
+				TimeSpec.addSymmetricEncryptionTime(time2);*/
 			}
 			else{
 				///tested
-				long start2 = System.nanoTime();///start crypto benchmark
+				//long start2 = System.nanoTime();///start crypto benchmark
+				TimeSpec.startSymmetricEncryptionTime();
 				r = cipher.doFinal(output, outputOffset);
-				long time2 = System.nanoTime()-start2;///end crypto benchmark
-				TimeSpec.addSymmetricEncryptionTime(time2);
+				TimeSpec.addSymmetricEncryptionTime();
+				/*long time2 = System.nanoTime()-start2;///end crypto benchmark
+				TimeSpec.addSymmetricEncryptionTime(time2);*/
 			}
 			this.reset();
 			return r;
@@ -342,16 +360,20 @@ public abstract class CBIRCipher extends CipherSpi {
 			///tested
 			updateBuffer(input, inputOffset, inputLen);
 			cbir.update(input, inputOffset, inputLen);
-			long start = System.nanoTime();///start crypto benchmark
+			//long start = System.nanoTime();///start crypto benchmark
+			TimeSpec.startSymmetricEncryptionTime();
 			byte[] buffer = cipher.update(input, inputOffset, inputLen); 
-			long time = System.nanoTime()-start;///end crypto benchmark
-			TimeSpec.addSymmetricEncryptionTime(time);
+			TimeSpec.addSymmetricEncryptionTime();
+			/*long time = System.nanoTime()-start;///end crypto benchmark
+			TimeSpec.addSymmetricEncryptionTime(time);*/
 			return buffer;
 		case(Cipher.DECRYPT_MODE):
-			long start2 = System.nanoTime();///start crypto benchmark
+			//long start2 = System.nanoTime();///start crypto benchmark
+			TimeSpec.startSymmetricEncryptionTime();
 			byte[] buffer2 = cipher.update(input, inputOffset, inputLen);
-			long time2 = System.nanoTime()-start2;///end crypto benchmark
-			TimeSpec.addSymmetricEncryptionTime(time2);
+			TimeSpec.addSymmetricEncryptionTime();
+			/*long time2 = System.nanoTime()-start2;///end crypto benchmark
+			TimeSpec.addSymmetricEncryptionTime(time2);*/
 			return buffer2;
 		default:
 			return null;
@@ -363,18 +385,22 @@ public abstract class CBIRCipher extends CipherSpi {
 		int r;
 		switch(opmode){
 		case(Cipher.ENCRYPT_MODE):
-			long start = System.nanoTime();///start crypto benchmark
+			//long start = System.nanoTime();///start crypto benchmark
+			TimeSpec.startSymmetricEncryptionTime();
 			r = cipher.update(input, inputOffset, inputLen, output, outputOffset);
-			long time = System.nanoTime()-start;///end crypto benchmark
-			TimeSpec.addSymmetricEncryptionTime(time);
+			TimeSpec.addSymmetricEncryptionTime();
+			/*long time = System.nanoTime()-start;///end crypto benchmark
+			TimeSpec.addSymmetricEncryptionTime(time);*/
 			updateBuffer(input, inputOffset, inputLen);
 			cbir.update(input, inputOffset, inputLen);
 			return r;
 		case(Cipher.DECRYPT_MODE):
-			long start2 = System.nanoTime();///start crypto benchmark
+			//long start2 = System.nanoTime();///start crypto benchmark
+			TimeSpec.startSymmetricEncryptionTime();
 			r = cipher.update(input, inputOffset, inputLen, output, outputOffset);
-			long time2 = System.nanoTime()-start2;///end crypto benchmark
-			TimeSpec.addSymmetricEncryptionTime(time2);
+			TimeSpec.addSymmetricEncryptionTime();
+			/*long time2 = System.nanoTime()-start2;///end crypto benchmark
+			TimeSpec.addSymmetricEncryptionTime(time2);*/
 			return r;
 		default:
 			return 0;

@@ -31,6 +31,11 @@ public class MIEClient implements MIE {
 	
 	private static final int DEFAULT_SERVER_PORT = 9978;
 	private static final String DEFAULT_SERVER_HOST = "127.0.0.1";
+
+	private static long networkTime = 0;
+	private static long networkTimeStart = 0;
+	private static int networkThreads = 0;
+	private static final Object networkTimeLock = new Object();
 	
 	private MIECrypto crypto;
 	protected ServerConnector server;
@@ -102,17 +107,17 @@ public class MIEClient implements MIE {
 			byte[] txt_cipher_text = null;
 			txt_cipher_text = crypto.encryptTxt(txt);
 			img_cipher_text = crypto.encryptImg(img);
-			synchronized(Main.networkTimeLock){
-				if(0 == Main.networkThreads)
-					Main.networkTimeStart = System.nanoTime();
-				Main.networkThreads++;
+			synchronized(networkTimeLock){
+				if(0 == networkThreads)
+					networkTimeStart = System.nanoTime();
+				networkThreads++;
 			}
 			boolean ret = server.sendUnstructredDoc(name, img_cipher_text, txt_cipher_text);
 			long time = System.nanoTime();
-			synchronized(Main.networkTimeLock){
-				if(1 == Main.networkThreads)
-					Main.networkTime += time - Main.networkTimeStart;
-				Main.networkThreads--;
+			synchronized(networkTimeLock){
+				if(1 == networkThreads)
+					networkTime += time - networkTimeStart;
+				networkThreads--;
 			}
 			return ret;
 		} catch (IllegalBlockSizeException e) {
@@ -130,17 +135,17 @@ public class MIEClient implements MIE {
 			doc = cache.getFromCache(name);
 		}
 		if(doc == null){
-			synchronized(Main.networkTimeLock){
-				if(0 == Main.networkThreads)
-					Main.networkTimeStart = System.nanoTime();
-				Main.networkThreads++;
+			synchronized(networkTimeLock){
+				if(0 == networkThreads)
+					networkTimeStart = System.nanoTime();
+				networkThreads++;
 			}
 			doc = server.getDoc(name, useCache);
 			long time = System.nanoTime();
-			synchronized(Main.networkTimeLock){
-				if(1 == Main.networkThreads)
-					Main.networkTime += time - Main.networkTimeStart;
-				Main.networkThreads--;
+			synchronized(networkTimeLock){
+				if(1 == networkThreads)
+					networkTime += time - networkTimeStart;
+				networkThreads--;
 			}
 			if(doc == null)
 				return null;
@@ -203,17 +208,17 @@ public class MIEClient implements MIE {
 		Map<String, byte[]> cbir_features = processMimeDocument(mime);
 		try {
 			byte[] cipher_doc = crypto.encryptMime(mime);
-			synchronized(Main.networkTimeLock){
-				if(0 == Main.networkThreads)
-					Main.networkTimeStart = System.nanoTime();
-				Main.networkThreads++;
+			synchronized(networkTimeLock){
+				if(0 == networkThreads)
+					networkTimeStart = System.nanoTime();
+				networkThreads++;
 			}
 			boolean ret = server.sendMimeDoc(name, cbir_features, cipher_doc);
 			long time = System.nanoTime();
-			synchronized(Main.networkTimeLock){
-				if(1 == Main.networkThreads)
-					Main.networkTime += time - Main.networkTimeStart;
-				Main.networkThreads--;
+			synchronized(networkTimeLock){
+				if(1 == networkThreads)
+					networkTime += time - networkTimeStart;
+				networkThreads--;
 			}
 			return ret;
 		} catch (IllegalBlockSizeException e) {
@@ -230,17 +235,17 @@ public class MIEClient implements MIE {
 			doc = cache.getFromCache(name);
 		}
 		if(doc == null){
-			synchronized(Main.networkTimeLock){
-				if(0 == Main.networkThreads)
-					Main.networkTimeStart = System.nanoTime();
-				Main.networkThreads++;
+			synchronized(networkTimeLock){
+				if(0 == networkThreads)
+					networkTimeStart = System.nanoTime();
+				networkThreads++;
 			}
 			doc = server.getDoc(name, useCache);
 			long time = System.nanoTime();
-			synchronized(Main.networkTimeLock){
-				if(1 == Main.networkThreads)
-					Main.networkTime += time - Main.networkTimeStart;
-				Main.networkThreads--;
+			synchronized(networkTimeLock){
+				if(1 == networkThreads)
+					networkTime += time - networkTimeStart;
+				networkThreads--;
 			}
 			if(doc == null)
 				return null;
@@ -260,17 +265,17 @@ public class MIEClient implements MIE {
 
 	@Override
 	public boolean index(boolean train, boolean wait) {
-		synchronized(Main.networkTimeLock){
-			if(0 == Main.networkThreads)
-				Main.networkTimeStart = System.nanoTime();
-			Main.networkThreads++;
+		synchronized(networkTimeLock){
+			if(0 == networkThreads)
+				networkTimeStart = System.nanoTime();
+			networkThreads++;
 		}
 		boolean ret = server.index(train, wait);
 		long time = System.nanoTime();
-		synchronized(Main.networkTimeLock){
-			if(1 == Main.networkThreads)
-				Main.networkTime += time - Main.networkTimeStart;
-			Main.networkThreads--;
+		synchronized(networkTimeLock){
+			if(1 == networkThreads)
+				networkTime += time - networkTimeStart;
+			networkThreads--;
 		}
 		return ret;
 	}
@@ -279,17 +284,17 @@ public class MIEClient implements MIE {
 	public List<SearchResult> searchUnstructuredDocument(byte[] img, byte[] txt, int nResults) {
 		byte [] img_features = crypto.cbirImg(img);
 		byte [] txt_features = crypto.cbirTxt(txt);
-		synchronized(Main.networkTimeLock){
-			if(0 == Main.networkThreads)
-				Main.networkTimeStart = System.nanoTime();
-			Main.networkThreads++;
+		synchronized(networkTimeLock){
+			if(0 == networkThreads)
+				networkTimeStart = System.nanoTime();
+			networkThreads++;
 		}
 		List<SearchResult> ret = server.searchUnstructredDoc(img_features, txt_features, nResults);
 		long time = System.nanoTime();
-		synchronized(Main.networkTimeLock){
-			if(1 == Main.networkThreads)
-				Main.networkTime += time - Main.networkTimeStart;
-			Main.networkThreads--;
+		synchronized(networkTimeLock){
+			if(1 == networkThreads)
+				networkTime += time - networkTimeStart;
+			networkThreads--;
 		}
 		return ret;
 	}
@@ -297,17 +302,17 @@ public class MIEClient implements MIE {
 	@Override
 	public List<SearchResult> searchMime(byte[] mime, int nResults) throws MessagingException {
 		Map<String, byte[]> cbir_features = processMimeDocument(mime);
-		synchronized(Main.networkTimeLock){
-			if(0 == Main.networkThreads)
-				Main.networkTimeStart = System.nanoTime();
-			Main.networkThreads++;
+		synchronized(networkTimeLock){
+			if(0 == networkThreads)
+				networkTimeStart = System.nanoTime();
+			networkThreads++;
 		}
 		List<SearchResult> ret = server.searchMimeDoc(cbir_features, nResults);
 		long time = System.nanoTime();
-		synchronized(Main.networkTimeLock){
-			if(1 == Main.networkThreads)
-				Main.networkTime += time - Main.networkTimeStart;
-			Main.networkThreads--;
+		synchronized(networkTimeLock){
+			if(1 == networkThreads)
+				networkTime += time - networkTimeStart;
+			networkThreads--;
 		}
 		return ret;
 		
@@ -330,6 +335,11 @@ public class MIEClient implements MIE {
 	@Override
 	public void resetServerCache() {
 		server.resetCache();
+	}
+
+	@Override
+	public long getNetworkTime() {
+		return networkTime;
 	}
 	
 	/**
