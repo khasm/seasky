@@ -71,7 +71,7 @@ public class Stare implements DatasetParser {
 			System.err.println("Error reading "+imgFile.toString());
 			e.printStackTrace();
 		}
-		String imgName = imgFile.getName().substring(0, imgFile.getName().length()-JPG.length());
+		String imgName = imgFile.getName().substring(0, imgFile.getName().length()-PPM.length());
 		String diagnosis = txts.get(imgName);
 		if(null != diagnosis){
 			txtList.add(diagnosis);
@@ -83,14 +83,12 @@ public class Stare implements DatasetParser {
 
 	private void initialize() throws IOException {
 		File imgDir = new File(datasetDir, "all-images");
-		Runtime rt = Runtime.getRuntime();
-		Process pr = rt.exec("mogrify -format jpg "+imgDir.toString()+"/*.ppm");
 		File imgDirNew = new File(datasetDir, "all-images");
 		File[] files = imgDirNew.listFiles();
 		imgs = new File[files.length];
 		max = 0;
 		for(File img: files){
-			if(img.getName().endsWith(JPG))
+			if(img.getName().endsWith(PPM))
 				imgs[max++] = img;
 		}
 		BufferedReader reader = new BufferedReader(new FileReader(new File(datasetDir, TXT)));

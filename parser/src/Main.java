@@ -228,10 +228,10 @@ public class Main {
 			List<String> extLibs = getLibraries();
 			for(String lib: extLibs)
 				libs += ":"+lib;
-			System.out.println(libs);
+			//System.out.println(libs);
 			String[] options = new String[]{"-cp", libs};
 			Iterable<String> compileOptions = Arrays.asList(options);
-			boolean done = compiler.getTask(null, fileManager, diagnostics, /*compileOptions*/null, null, 
+			boolean done = compiler.getTask(null, fileManager, diagnostics, compileOptions, null, 
 				compilationUnits).call();
 			for ( Diagnostic<? extends JavaFileObject> diagnostic : diagnostics.getDiagnostics())
 				System.out.format("%s:%s:%d %s%n", diagnostic.getKind().toString(),

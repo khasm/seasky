@@ -1,0 +1,7 @@
+#!/bin/sh
+
+stat "bin" > /dev/null 2>&1
+if [ "$?" != 0 ]; then
+	mkdir bin
+fi
+javac -d bin src/*.java
