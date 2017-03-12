@@ -4,6 +4,7 @@ import java.io.FileInputStream;
 import java.io.FileOutputStream;
 import java.io.File;
 import java.io.IOException;
+import java.io.FileNotFoundException;
 import java.io.PrintWriter;
 import java.security.NoSuchAlgorithmException;
 import java.util.HashMap;
@@ -39,6 +40,7 @@ import mie.utils.Command;
 import mie.utils.Pair;
 import mie.utils.Monitor;
 import mie.utils.SearchStats;
+import mie.utils.TestSet;
 
 public class Main {
 
@@ -210,7 +212,11 @@ public class Main {
 					n_threads = Integer.parseInt(command.getArgs()[0]);
 				}
 				else if(command.getOp().equalsIgnoreCase("script")){
-					System.out.println("Not yet implemented");
+					File script = new File(command.getArgs()[0]);
+					if(script.exists()){
+						TestSet test = new TestSet(script);
+						test.start();
+					}
 				}
 				else if(command.getOp().equalsIgnoreCase("print")){
 					if(null == mie){
@@ -248,11 +254,16 @@ public class Main {
 			for(List<Pair<Long,String>> log: threadLogs)
 				for(Pair<Long,String> entry: log)
 					fullLog.add(entry);
-			PrintWriter logger = new PrintWriter(new File(logDirPath, "log"));
-			for(Pair<Long,String> entry: fullLog){
-				logger.println(entry.getKey()+": "+entry.getValue());
+			try{
+				PrintWriter logger = new PrintWriter(new File(logDirPath, "log"));
+				for(Pair<Long,String> entry: fullLog){
+					logger.println(entry.getKey()+": "+entry.getValue());
+				}
+				logger.close();
 			}
-			logger.close();
+			catch(FileNotFoundException e){
+				System.out.println("Couldn't create log");
+			}
 		}
 	}
 

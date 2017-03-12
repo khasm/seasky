@@ -1,0 +1,10 @@
+/*
+Use /* to start multi line comments and */ to end them. Single line comments can be done with //
+This is a sample script to test the parser and not a real test script
+*/
+ip=server_ip
+threads=255
+logdir=/log_directory
+path=/dataset_path
+mode=descriptive
+ops=add 0 999,index w; search 0,search 1 999
