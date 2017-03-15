@@ -1,6 +1,6 @@
 /*
 Use /* to start multi line comments and */ to end them. Single line comments can be done with //
-This is a sample script to test the parser and not a real test script
+This is a example test script and will not work
 */
 ip=server_ip
 threads=255

@@ -66,7 +66,7 @@ public class Main {
 			boolean useCache = false;
 			List<Command> queue = new ArrayList<Command>(args.length);
 			String ip = "localhost";
-			Monitor monitor = new Monitor();
+			Monitor monitor = new Monitor(1);
 			threadLogs = new LinkedList<List<Pair<Long,String>>>();
 			searchStats = new SearchStats();
 			while(nextArg < args.length){
@@ -321,7 +321,7 @@ public class Main {
 			clients[i] = new ClientThread(i, c, ip, useCache, monitor);
 			clients[i].start();
 		}
-		monitor.ready();
+		monitor.start();
 		long start = System.nanoTime();
 		try{
 			for(int i = 0; i < n_threads; i++){
@@ -572,7 +572,7 @@ class ClientThread extends Thread{
 	}
 
 	public void run(){
-		monitor.waitForThreads();
+		monitor.ready();
 		System.out.printf("Thread %d started\n", threadId);
 		try{
 			if(com.getOp().startsWith("add") || com.getOp().startsWith("search")){
@@ -698,8 +698,8 @@ class ClientThread extends Thread{
 			}
 			else if(com.getOp().equalsIgnoreCase("index")){
 				boolean wait = com.getArgs().length > 0 &&
-					(com.getArgs()[1].equalsIgnoreCase("w") ||
-					com.getArgs()[1].equalsIgnoreCase("wait")) ? true : false;
+					(com.getArgs()[0].equalsIgnoreCase("w") ||
+					com.getArgs()[0].equalsIgnoreCase("wait")) ? true : false;
 				mie.index(true, wait);
 			}
 			else if(com.getOp().equalsIgnoreCase("reset")){

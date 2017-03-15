@@ -39,7 +39,7 @@ public class MIEClient implements MIE {
 	
 	private MIECrypto crypto;
 	protected ServerConnector server;
-	protected Cache cache;
+	public Cache cache;
 	private boolean aUseCache;
 	private boolean aVerified; //not actually used yet, proof of concept
 	

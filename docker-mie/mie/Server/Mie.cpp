@@ -541,6 +541,7 @@ void MIE::index(bool train)
     index_lock.lock();
     while(0 < aInProgressSearches)
         aSearchesDone.wait(index_lock);
+    index_lock.unlock();
     for(unsigned i = 0; i < clusters; i++)
         aImgIndex[i]->clear();
     //aTextIndex.clear();
@@ -548,6 +549,7 @@ void MIE::index(bool train)
     indexText(*text_features);
     persistImgIndex();
     persistTextIndex();
+    index_lock.lock();
     aIndexing = false;
     aIndexDone.notify_all();
 }
@@ -570,10 +572,12 @@ void MIE::indexImgs(const map<int,Mat>& imgFeatures, bool train)
         Mat mat;
         while(0 < stream.getNextFeatures(tmp_id, mat, tmp_name)){
             if (rng.uniform(0.f,1.f) <= 0.1f){
-                start_time = getTime();
-                bowTrainer.add(mat);
-                //cout<<tmp_id<<" ";
-                aTrainTime += diffSec(start_time, getTime());
+                if(!mat.empty()){
+                    start_time = getTime();
+                    bowTrainer.add(mat);
+                    //cout<<tmp_id<<" ";
+                    aTrainTime += diffSec(start_time, getTime());
+                }
             }
             if(aMaxTempFeaturesSize > stream.aTotalFeaturesSize){
                 tmp_features[tmp_id] = mat;
@@ -589,10 +593,12 @@ void MIE::indexImgs(const map<int,Mat>& imgFeatures, bool train)
         }
         for(map<int,Mat>::const_iterator it = imgFeatures.begin(); it != imgFeatures.end(); ++it){
             if (rng.uniform(0.f,1.f) <= 0.1f){
-                start_time = getTime();
-                bowTrainer.add(it->second);
-                //cout<<it->first<<" ";
-                aTrainTime += diffSec(start_time, getTime());
+                    if(!it->second.empty()){
+                        start_time = getTime();
+                        bowTrainer.add(it->second);
+                        //cout<<it->first<<" ";
+                        aTrainTime += diffSec(start_time, getTime());
+                    }
             }
             unique_lock<mutex> img_features_lock(aImgFeaturesLock);
             write_buffer_size += 3 * sizeof(int) + aImgDocs[it->first].size() + sizeof(uint64_t) *

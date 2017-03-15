@@ -6,6 +6,11 @@ import java.io.BufferedReader;
 import java.io.IOException;
 import java.util.Queue;
 import java.util.LinkedList;
+import java.security.NoSuchAlgorithmException;
+import javax.crypto.NoSuchPaddingException;
+
+import mie.MIE;
+import mie.MIEClient;
 
 public class TestSet {
 
@@ -34,15 +39,16 @@ public class TestSet {
 	private static final String UNDEFINED_MODE_ERROR = "Script mode is undefined";
 	private static final String UNRECOGNIZED_MODE = "The %s mode is not recognized";
 	//valid commands
-	private static final String ADD = "add";
-	private static final String ADD_MIME = "addmime";
-	private static final String GET = "get";
-	private static final String GET_MIME = "getmime";
-	private static final String SEARCH = "search";
-	private static final String SEARCH_MIME = "searchmime";
-	private static final String INDEX = "index";
-	private static final String RESET = "reset";
-	private static final String CLEAR = "clear";
+	public static final String ADD = "add";
+	public static final String ADD_MIME = "addmime";
+	public static final String GET = "get";
+	public static final String GET_MIME = "getmime";
+	public static final String SEARCH = "search";
+	public static final String SEARCH_MIME = "searchmime";
+	public static final String INDEX = "index";
+	public static final String RESET = "reset";
+	public static final String CLEAR = "clear";
+	public static final String SYNC = "sync";
 	//command args
 	private static final String INDEX_WAIT_SHORT = "w";
 	private static final String INDEX_WAIT_LONG = "wait";
@@ -61,6 +67,8 @@ public class TestSet {
 	private File logDir;
 	private int nThreads;
 	private String mode;
+	private boolean useCache;
+	private SearchStats searchStats;
 
 	public TestSet(File script) {
 		this.script = script;
@@ -70,6 +78,8 @@ public class TestSet {
 		nThreads = DEFAULT_THREADS;
 		mode = UNDEFINED_MODE;
 		operations = new LinkedList<Command>();
+		useCache = false;
+		searchStats = new SearchStats();
 	}
 
 	public void start() throws IOException {
@@ -83,6 +93,33 @@ public class TestSet {
 				System.out.printf(" %s", arg);
 			System.out.println();
 		}
+		Monitor monitor = new Monitor(nThreads);
+		ClientThread[] threads = new ClientThread[nThreads];
+		for(int i = 0; i < nThreads; i++){
+			try{
+				MIE client = new MIEClient(ip, useCache);
+				threads[i] = new ClientThread(operations, i, monitor, client, datasetDir);
+				threads[i].start();
+			}
+			catch(NoSuchAlgorithmException | NoSuchPaddingException e){
+				e.printStackTrace();
+			}
+		}
+		monitor.start();
+		try{
+			for(int i = 0; i < nThreads; i++){
+				System.out.printf("Waiting for thread %d\n", i);
+				threads[i].join();
+			}
+		}
+		catch(InterruptedException e){
+			e.printStackTrace();
+		}
+		for(int i = 0; i < nThreads; i++){
+			searchStats.merge(threads[i].getSearchStats());
+		}
+		if(searchStats.hasData())
+			System.out.println(searchStats.toString());
 	}
 
 	private void parseScript() throws IOException {
@@ -175,7 +212,7 @@ public class TestSet {
 					throw new IOException(String.format(ARG_ERROR, FEW_ERROR, s));
 				}
 				else if(args[0].equalsIgnoreCase(INDEX)||args[0].equalsIgnoreCase(RESET)||
-					args[0].equalsIgnoreCase(CLEAR)){
+					args[0].equalsIgnoreCase(CLEAR)||args[0].equalsIgnoreCase(SYNC)){
 					operations.add(new Command(args[0]));
 				}
 				else{
@@ -203,7 +240,8 @@ public class TestSet {
 						operations.add(new Command(args[0], new String[]{INDEX_WAIT_SHORT}));
 					}
 				}
-				else if(args[0].equalsIgnoreCase(RESET)||args[0].equalsIgnoreCase(CLEAR)){
+				else if(args[0].equalsIgnoreCase(RESET)||args[0].equalsIgnoreCase(CLEAR)||
+					args[0].equalsIgnoreCase(SYNC)){
 					throw new IOException(String.format(ARG_ERROR, MANY_ERROR, s));
 				}
 				else{

@@ -1,0 +1,6 @@
+ip=localhost
+threads=10
+logdir=logs
+path=datasets
+mode=descriptive
+ops=add 0 999;sync; index w;sync; search 0 999; get 0 999
