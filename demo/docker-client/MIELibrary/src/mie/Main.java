@@ -216,6 +216,7 @@ public class Main {
 					if(script.exists()){
 						TestSet test = new TestSet(script);
 						test.start();
+						System.out.printf(test.toString());
 					}
 				}
 				else if(command.getOp().equalsIgnoreCase("print")){

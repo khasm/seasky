@@ -261,7 +261,12 @@ set<QueryResult,cmp_QueryResult> MIE::search(const char* data, size_t& nResults)
     vector<vector<char>> keywords;
     set<QueryResult,cmp_QueryResult> merged_results;
     nResults = parseFeatures(data, mat, keywords);
-    timespec start_time = getTime();
+    unique_lock<mutex> tmp(aSearchTimeLock);
+    if(0 == aNSearchingThreads){
+        aStartSearchTime = getTime();
+    }
+    aNSearchingThreads++;
+    tmp.unlock();
     set<QueryResult,cmp_QueryResult> img_results;
     set<QueryResult,cmp_QueryResult> text_results;
     if(0 == aNImgs)
@@ -273,9 +278,12 @@ set<QueryResult,cmp_QueryResult> MIE::search(const char* data, size_t& nResults)
     else
         text_results = textSearch(keywords);
     merged_results = mergeSearchResults(img_results, text_results);
-    double time = diffSec(start_time, getTime());
-    unique_lock<mutex> tmp(aSearchTimeLock);
-    aSearchTime += time;
+    double time = diffSec(aStartSearchTime, getTime());
+    tmp.lock();
+    if(1 == aNSearchingThreads){
+        aSearchTime += time;
+    }
+    aNSearchingThreads--;
     index_lock.lock();
     aInProgressSearches--;
     if(0 == aInProgressSearches)

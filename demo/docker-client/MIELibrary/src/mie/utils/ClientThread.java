@@ -26,12 +26,16 @@ public class ClientThread extends Thread {
 	private static final String UNSTRUCTURED_TXT_NAME_FORMAT = "/tags/tags%s.txt";
 	private static final String MIME_DOC_NAME_FORMAT = "/mime/%s.mime";
 
-	private Queue<Command> commands;
-	private int threadId;
 	private MIE mie;
 	private Monitor monitor;
 	private SearchStats searchStats;
 	private File datasetDir;
+	private Queue<Command> commands;
+	private int threadId;
+	private int nOperations;
+	private long bytesUpload;
+	private long bytesSearch;
+	private long bytesDownload;
 
 	public ClientThread(Queue<Command> commands, int threadId, Monitor monitor, MIE mie,
 		File datasetDir) {
@@ -41,6 +45,10 @@ public class ClientThread extends Thread {
 		this.monitor = monitor;
 		this.datasetDir = datasetDir;
 		searchStats = new SearchStats();
+		bytesUpload = 0;
+		bytesSearch = 0;
+		bytesDownload = 0;
+		nOperations = 0;
 	}
 
 	public void run() {
@@ -119,6 +127,7 @@ public class ClientThread extends Thread {
 					}
 				}
 				else if(op.equalsIgnoreCase(TestSet.INDEX)){
+					nOperations++;
 					boolean wait = command.getArgs().length > 0 &&
 						(command.getArgs()[0].equalsIgnoreCase("w") ||
 						command.getArgs()[0].equalsIgnoreCase("wait")) ? true : false;
@@ -138,50 +147,76 @@ public class ClientThread extends Thread {
 		return searchStats;
 	}
 
+	public long getBytesUpload() {
+		return bytesUpload;
+	}
+
+	public long getBytesSearch() {
+		return bytesSearch;
+	}
+
+	public long getBytesDownload() {
+		return bytesDownload;
+	}
+
+	public int getNOperations() {
+		return nOperations;
+	}
+
 	private void addUnstructered(int first, int last) throws IOException{
+		nOperations += last - first +1;
 		for(int i = first; i <= last; i++){
 			byte[] img = readImg(i);
 			byte[] txt = readTxt(i);
-			//TODO: add total bytes processed
+			bytesUpload += img.length + txt.length;
 			mie.addUnstructredDoc(""+i, img, txt);
 		}
 	}
 
 
 	private void searchUnstructured(int first, int last) throws IOException{
+		nOperations += last - first +1;
 		for(int i = first; i <= last; i++){
 			byte[] img = readImg(i);
 			byte[] txt = readTxt(i);
+			bytesSearch += img.length + txt.length;
 			processResults(mie.searchUnstructuredDocument(img, txt, 0), i);
 		}
 	}
 
 	private void getUnstructured(int[] ids, int first) throws IOException{
+		nOperations += ids.length;
 		for(int i = 0; i < ids.length; i++){
 			byte[][] file = mie.getUnstructuredDoc(ids[i]+"", true);
+			bytesDownload += file[0].length + file[1].length;
 			writeFile((i+first)+".jpg", file[0]);
 			writeFile((i+first)+".txt", file[1]);
 		}
 	}
 
-	private void addMime(int first, int last) throws IOException,
-		MessagingException{
+	private void addMime(int first, int last) throws IOException, MessagingException{
+		nOperations += last - first +1;
 		for(int i = first; i <= last; i++){
 			byte[] mime = readMime(i);
+			bytesUpload += mime.length;
 			mie.addMime(""+i, mime);
 		}
 	}
 
 	private void searchMime(int first, int last) throws IOException, MessagingException{
+		nOperations += last - first +1;
 		for(int i = first; i <= last; i++){
 			byte[] mime = readMime(i);
+			bytesSearch += mime.length;
 			processResults(mie.searchMime(mime, 0), i);
 		}
 	}
 
 	private void getMime(int[] ids, int first) throws IOException{
+		nOperations += ids.length;
 		for(int i = 0; i < ids.length; i++){
 			byte[] file = mie.getMime(ids[i]+"", true);
+			bytesDownload += file.length;
 			writeFile((i+first)+".mime", file);
 		}
 	}

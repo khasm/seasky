@@ -6,13 +6,19 @@ public class Monitor {
 	private final Object lock;
 	private int nThreads;
 	private int waitingThreads;
+	private int runningThreads;
+	private long startTime;
+	private long totalTime;
 	private boolean synced;
 
-	public Monitor(int nThreads){
+	public Monitor(int nThreads) {
 		ready = false;
 		lock = new Object();
 		this.nThreads = nThreads;
 		waitingThreads = 0;
+		runningThreads = 0;
+		startTime = 0;
+		totalTime = 0;
 		synced = false;
 	}
 
@@ -26,11 +32,11 @@ public class Monitor {
 			if(waitingThreads == nThreads-1){
 				synced = true;
 				lock.notifyAll();
-				System.out.println("waitForAll finished");
+				//System.out.println("waitForAll finished");
 			}
 			else{
 				waitingThreads++;
-				System.out.println("Waiting for " + (nThreads - waitingThreads));
+				//System.out.println("Waiting for " + (nThreads - waitingThreads));
 				while(waitingThreads < nThreads && !synced){
 					try{
 						lock.wait();
@@ -39,7 +45,7 @@ public class Monitor {
 						e.printStackTrace();
 					}
 				}
-				System.out.println("Stopped waiting");
+				//System.out.println("Stopped waiting");
 				waitingThreads--;
 			}
 		}
@@ -62,6 +68,20 @@ public class Monitor {
 		synchronized(lock){
 			ready = true;
 			lock.notifyAll();
+			startTime = System.nanoTime();
 		}
+	}
+
+	public void end() {
+		totalTime += System.nanoTime() - startTime;
+	}
+
+	public float getTotalTime() {
+		return totalTime/1000000000f;
+	}
+
+	@Override
+	public String toString() {
+		return String.format("Total time: %.6f", getTotalTime());
 	}
 }

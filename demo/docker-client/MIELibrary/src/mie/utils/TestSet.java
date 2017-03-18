@@ -6,11 +6,13 @@ import java.io.BufferedReader;
 import java.io.IOException;
 import java.util.Queue;
 import java.util.LinkedList;
+import java.util.Map;
 import java.security.NoSuchAlgorithmException;
 import javax.crypto.NoSuchPaddingException;
 
 import mie.MIE;
 import mie.MIEClient;
+import mie.crypto.TimeSpec;
 
 public class TestSet {
 
@@ -60,15 +62,22 @@ public class TestSet {
 	private static final String OPS_SEQUENCE_SPLIT_REGEX = "[,;]";
 	private static final String COMMAND_ARGS_SEPARATOR = " ";
 
-	private File script;
-	private Queue<Command> operations;
+
+	private SearchStats searchStats;
+	private Monitor monitor;
 	private String ip;
+	private String mode;
+	private File script;
 	private File datasetDir;
 	private File logDir;
+	private Queue<Command> operations;
 	private int nThreads;
-	private String mode;
+	private int nOperations;
+	private long bytesUpload;
+	private long bytesSearch;
+	private long bytesDownload;
 	private boolean useCache;
-	private SearchStats searchStats;
+	private boolean indexWait;
 
 	public TestSet(File script) {
 		this.script = script;
@@ -80,6 +89,11 @@ public class TestSet {
 		operations = new LinkedList<Command>();
 		useCache = false;
 		searchStats = new SearchStats();
+		monitor = new Monitor(nThreads);
+		indexWait = false;
+		bytesUpload = 0;
+		bytesSearch = 0;
+		bytesDownload = 0;
 	}
 
 	public void start() throws IOException {
@@ -93,7 +107,7 @@ public class TestSet {
 				System.out.printf(" %s", arg);
 			System.out.println();
 		}
-		Monitor monitor = new Monitor(nThreads);
+		monitor = new Monitor(nThreads);
 		ClientThread[] threads = new ClientThread[nThreads];
 		for(int i = 0; i < nThreads; i++){
 			try{
@@ -110,16 +124,67 @@ public class TestSet {
 			for(int i = 0; i < nThreads; i++){
 				System.out.printf("Waiting for thread %d\n", i);
 				threads[i].join();
+				bytesDownload += threads[i].getBytesDownload();
+				bytesUpload += threads[i].getBytesUpload();
+				bytesSearch += threads[i].getBytesSearch();
+				nOperations += threads[i].getNOperations();
 			}
 		}
 		catch(InterruptedException e){
 			e.printStackTrace();
 		}
+		monitor.end();
 		for(int i = 0; i < nThreads; i++){
 			searchStats.merge(threads[i].getSearchStats());
 		}
 		if(searchStats.hasData())
 			System.out.println(searchStats.toString());
+	}
+
+	@Override
+	public String toString() {
+		MIE client = null;
+		float networkTime = 0;
+		StringBuffer serverSide = new StringBuffer();
+		float indexWaitValue = 0;
+		try{
+			client = new MIEClient(ip, useCache);
+			networkTime = client.getNetworkTime()/1000000000f;
+			Map<String,String> stats = client.printServerStatistics();
+			for(String key: stats.keySet()){
+				String value = stats.get(key);
+				serverSide.append(String.format("%s: %s\n", key, value));
+				if(key.equalsIgnoreCase("Train time")||key.equalsIgnoreCase("Network feature time")||
+					key.equalsIgnoreCase("Network index time")||key.equalsIgnoreCase("Index time")){
+					indexWaitValue += Float.parseFloat(value);
+				}
+			}
+			if(indexWait)
+				networkTime -= indexWaitValue;
+		}
+		catch(NoSuchAlgorithmException | NoSuchPaddingException | IOException e){
+			e.printStackTrace();
+		}
+		long indexTime = TimeSpec.getIndexTime();
+		long featureExtractionTime = TimeSpec.getFeatureTime();
+		long encryptionTime = TimeSpec.getEncryptionTime();
+		long encryptionSymmetricTime = TimeSpec.getEncryptionSymmetricTime();
+		long encryptionCbirTime = TimeSpec.getEncryptionCbirTime();
+		long encryptionMiscTime = TimeSpec.getEncryptionMiscTime();
+		float totalTime = monitor.getTotalTime();
+		String encryption = String.format("CBIR encryption: %f\nSymmetric encryption: %f\nMisc: %f\n",
+			encryptionCbirTime/1000000000f, encryptionSymmetricTime/1000000000f,
+			encryptionMiscTime/1000000000f);
+		String clientSide = String.format(
+				"featureTime: %f indexTime: %f cryptoTime: %f cloudTime: %f %s\nThroughput:\n"+
+				"Total Bytes uploaded: %d Total Bytes searched: %d Total Bytes downloaded: %d\n"+
+				"Bytes uploaded/s: %.6f Bytes searched/s: %.6f Bytes downloaded/s: %.6f\n"+
+				"Total operations: %d Operations/s: %.6f\n",
+				featureExtractionTime/1000000000f, indexTime/1000000000f, encryptionTime/1000000000f,
+				networkTime, monitor.toString(), bytesUpload, bytesSearch, bytesDownload,
+				bytesUpload/totalTime, bytesSearch/totalTime, bytesDownload/totalTime,
+				nOperations, nOperations/totalTime);
+		return serverSide.toString() + encryption + clientSide;
 	}
 
 	private void parseScript() throws IOException {
@@ -238,6 +303,7 @@ public class TestSet {
 					if(args[1].equalsIgnoreCase(INDEX_WAIT_SHORT)||
 						args[1].equalsIgnoreCase(INDEX_WAIT_LONG)){
 						operations.add(new Command(args[0], new String[]{INDEX_WAIT_SHORT}));
+						indexWait = true;
 					}
 				}
 				else if(args[0].equalsIgnoreCase(RESET)||args[0].equalsIgnoreCase(CLEAR)||

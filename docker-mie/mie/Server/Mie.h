@@ -61,6 +61,8 @@ class MIE{
     double aIndexTime;///time to index images
     double aTrainTime;///time to create codebook
     double aSearchTime;//time spent on searching
+    timespec aStartSearchTime;//time first thread started searching
+    unsigned int aNSearchingThreads;//how many threads searching
     std::mutex aSearchTimeLock;
     double aNetworkIndexTime;///time spent on upload/download of the index
     double aNetworkFeatureTime;//time spent on upload/download of features/codebook
