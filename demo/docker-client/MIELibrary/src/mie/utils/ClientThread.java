@@ -33,14 +33,16 @@ public class ClientThread extends Thread {
 	private Queue<Command> commands;
 	private int threadId;
 	private int nOperations;
+	private int prefix;
 	private long bytesUpload;
 	private long bytesSearch;
 	private long bytesDownload;
 
 	public ClientThread(Queue<Command> commands, int threadId, Monitor monitor, MIE mie,
-		File datasetDir) {
+		File datasetDir, int prefix) {
 		this.commands = commands;
 		this.threadId = threadId;
+		this.prefix = prefix;
 		this.mie = mie;
 		this.monitor = monitor;
 		this.datasetDir = datasetDir;
@@ -55,6 +57,7 @@ public class ClientThread extends Thread {
 		monitor.ready();
 		System.out.println("Thread "+threadId+" started");
 		for(Command command: commands){
+			System.out.println("Thread "+threadId+" exec: "+command.toString());
 			String op = command.getOp().toLowerCase();
 			try{
 				if(op.startsWith(TestSet.ADD) || op.startsWith(TestSet.SEARCH)||
@@ -62,8 +65,8 @@ public class ClientThread extends Thread {
 					int first = Integer.parseInt(command.getArgs()[0]);
 					int last = command.getArgs().length == 2 ?
 						Integer.parseInt(command.getArgs()[1]) : first;
-					int nThreads = monitor.getNThreads();
-					if(1 < nThreads){
+					if(first != last){
+						int nThreads = monitor.getNThreads();
 						int maxDocs = 0;
 						if(op.equals(TestSet.ADD) || op.equals(TestSet.GET) ||
 							op.equals(TestSet.SEARCH)){
@@ -81,12 +84,14 @@ public class ClientThread extends Thread {
 						int nDocs = last - first + 1;
 						if(maxDocs < nDocs)
 							nDocs = maxDocs;
-						int reqDocs = nDocs % nThreads == 0 ? nDocs / nThreads : nDocs / nThreads +1;
-						first = threadId * reqDocs;
-						int max = first + reqDocs - 1;
-						if(max > last)
-							max = last;
-						last = max;
+						if(1 < nThreads){
+							int reqDocs = nDocs % nThreads == 0 ? nDocs / nThreads : nDocs / nThreads +1;
+							first = threadId * reqDocs;
+							int max = first + reqDocs - 1;
+							if(max > last)
+								max = last;
+							last = max;
+						}
 					}
 					if(op.equalsIgnoreCase(TestSet.ADD)){
 						addUnstructered(first, last);
@@ -169,7 +174,7 @@ public class ClientThread extends Thread {
 			byte[] img = readImg(i);
 			byte[] txt = readTxt(i);
 			bytesUpload += img.length + txt.length;
-			mie.addUnstructredDoc(""+i, img, txt);
+			mie.addUnstructredDoc(""+(prefix+i), img, txt);
 		}
 	}
 
@@ -199,7 +204,7 @@ public class ClientThread extends Thread {
 		for(int i = first; i <= last; i++){
 			byte[] mime = readMime(i);
 			bytesUpload += mime.length;
-			mie.addMime(""+i, mime);
+			mie.addMime(""+(prefix+i), mime);
 		}
 	}
 

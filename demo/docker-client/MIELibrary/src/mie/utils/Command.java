@@ -22,4 +22,12 @@ public class Command {
 	public String[] getArgs() {
 		return args;
 	}
+
+	@Override
+	public String toString() {
+		String desc = op;
+		for(String s: args)
+			desc += " "+s;
+		return desc;
+	}
 }

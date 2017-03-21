@@ -7,6 +7,8 @@ import java.io.IOException;
 import java.util.Queue;
 import java.util.LinkedList;
 import java.util.Map;
+import java.util.HashMap;
+import java.util.Random;
 import java.security.NoSuchAlgorithmException;
 import javax.crypto.NoSuchPaddingException;
 
@@ -40,6 +42,8 @@ public class TestSet {
 	private static final String INVALID_COMMAND = "%s is not a recognized command";
 	private static final String UNDEFINED_MODE_ERROR = "Script mode is undefined";
 	private static final String UNRECOGNIZED_MODE = "The %s mode is not recognized";
+	private static final String INVALID_DOCUMENT_TYPE = "The document type is not valid: %s";
+	private static final String INVALID_ARGUMENT = "Invalid argument found in %s";
 	//valid commands
 	public static final String ADD = "add";
 	public static final String ADD_MIME = "addmime";
@@ -51,9 +55,13 @@ public class TestSet {
 	public static final String RESET = "reset";
 	public static final String CLEAR = "clear";
 	public static final String SYNC = "sync";
+	public static final String BASE = "base";
+	public static final String OPERATIONS = "operations";
 	//command args
 	private static final String INDEX_WAIT_SHORT = "w";
 	private static final String INDEX_WAIT_LONG = "wait";
+	private static final char TYPE_UNSTRUCTURED = 'u';
+	private static final char TYPE_MIME = 'm';
 	//script keywords
 	private static final String SINGLE_LINE_COMMENT = "//";
 	private static final String MULTI_LINE_COMMENT_BEGIN = "/*";
@@ -61,6 +69,16 @@ public class TestSet {
 	private static final String KEY_VALUE_SEPARATOR = "=";
 	private static final String OPS_SEQUENCE_SPLIT_REGEX = "[,;]";
 	private static final String COMMAND_ARGS_SEPARATOR = " ";
+	//queue automatic generation
+	private static final int PREFIX_DIVISION = 1000;
+	private static final int N_OP_TYPES = 6;
+	private static final int ADD_INDEX = 0;
+	private static final int SEARCH_INDEX = 1;
+	private static final int GET_INDEX = 2;
+	private static final int ADD_MIME_INDEX = 3;
+	private static final int SEARCH_MIME_INDEX = 4;
+	private static final int GET_MIME_INDEX = 5;
+	private static final char TYPE_UNDEFINED = '«';
 
 
 	private SearchStats searchStats;
@@ -94,9 +112,10 @@ public class TestSet {
 		bytesUpload = 0;
 		bytesSearch = 0;
 		bytesDownload = 0;
+		nOperations = 0;
 	}
 
-	public void start() throws IOException {
+	public void start() throws IOException, ScriptErrorException {
 		parseScript();
 		//TODO:
 		System.out.printf("ip: %s\nthreads: %d\nlogs: %s\ndataset: %s\nmode: %s\n",
@@ -107,38 +126,18 @@ public class TestSet {
 				System.out.printf(" %s", arg);
 			System.out.println();
 		}
-		monitor = new Monitor(nThreads);
-		ClientThread[] threads = new ClientThread[nThreads];
-		for(int i = 0; i < nThreads; i++){
-			try{
-				MIE client = new MIEClient(ip, useCache);
-				threads[i] = new ClientThread(operations, i, monitor, client, datasetDir);
-				threads[i].start();
-			}
-			catch(NoSuchAlgorithmException | NoSuchPaddingException e){
-				e.printStackTrace();
-			}
+		if(mode.equalsIgnoreCase(UNDEFINED_MODE)){
+			throw new ScriptErrorException(UNDEFINED_MODE_ERROR);
 		}
-		monitor.start();
-		try{
-			for(int i = 0; i < nThreads; i++){
-				System.out.printf("Waiting for thread %d\n", i);
-				threads[i].join();
-				bytesDownload += threads[i].getBytesDownload();
-				bytesUpload += threads[i].getBytesUpload();
-				bytesSearch += threads[i].getBytesSearch();
-				nOperations += threads[i].getNOperations();
-			}
+		if(mode.equalsIgnoreCase(EXPLICIT_MODE)){
+			runExplicit();
 		}
-		catch(InterruptedException e){
-			e.printStackTrace();
+		else if(mode.equalsIgnoreCase(DESCRIPTIVE_MODE)){
+			runDescriptive();
 		}
-		monitor.end();
-		for(int i = 0; i < nThreads; i++){
-			searchStats.merge(threads[i].getSearchStats());
+		else{
+			throw new ScriptErrorException(String.format(UNRECOGNIZED_MODE, mode));
 		}
-		if(searchStats.hasData())
-			System.out.println(searchStats.toString());
 	}
 
 	@Override
@@ -187,7 +186,7 @@ public class TestSet {
 		return serverSide.toString() + encryption + clientSide;
 	}
 
-	private void parseScript() throws IOException {
+	private void parseScript() throws IOException, ScriptErrorException {
 		BufferedReader reader = new BufferedReader(new FileReader(script));
 		String line;
 		int comment = 0;
@@ -210,14 +209,14 @@ public class TestSet {
 				continue;
 			}
 			else if(line.endsWith(MULTI_LINE_COMMENT_END) && 0 == comment){
-				throw new IOException(String.format(
+				throw new ScriptErrorException(String.format(
 					PARSING_ERROR_FORMAT, script.getName(), lineNumber, line));
 			}
 			int index = line.indexOf(KEY_VALUE_SEPARATOR);
 			String option;
 			String newLine;
 			if(-1 == index){
-				throw new IOException(
+				throw new ScriptErrorException(
 					String.format(PARSING_ERROR_FORMAT, script.getName(), lineNumber, line));
 			}
 			else{
@@ -232,7 +231,7 @@ public class TestSet {
 					nThreads = Integer.parseInt(option);
 				}
 				catch(NumberFormatException e){
-					throw new IOException(
+					throw new ScriptErrorException(
 						String.format(PARSING_ERROR_FORMAT, script.getName(), lineNumber, line));		
 				}
 			}
@@ -249,21 +248,10 @@ public class TestSet {
 				opsSequence = option;
 			}
 		}
-		if(mode.equalsIgnoreCase(UNDEFINED_MODE)){
-			throw new IOException(UNDEFINED_MODE_ERROR);
-		}
-		if(mode.equalsIgnoreCase(EXPLICIT_MODE)){
-			//TODO
-		}
-		else if(mode.equalsIgnoreCase(DESCRIPTIVE_MODE)){
-			parseCommands(opsSequence);
-		}
-		else{
-			throw new IOException(String.format(UNRECOGNIZED_MODE, mode));
-		}
+		parseCommands(opsSequence);
 	}
 
-	private void parseCommands(String opsSequence) throws IOException {
+	private void parseCommands(String opsSequence) throws ScriptErrorException {
 		String[] rawOps = opsSequence.split(OPS_SEQUENCE_SPLIT_REGEX);
 		for(String s: rawOps){
 			s = s.trim();
@@ -273,47 +261,353 @@ public class TestSet {
 			if(1 == args.length){
 				if(args[0].equalsIgnoreCase(ADD)||args[0].equalsIgnoreCase(ADD_MIME)||
 				   args[0].equalsIgnoreCase(GET)||args[0].equalsIgnoreCase(GET_MIME)||
-				   args[0].equalsIgnoreCase(SEARCH)||args[0].equalsIgnoreCase(SEARCH_MIME)){
-					throw new IOException(String.format(ARG_ERROR, FEW_ERROR, s));
+				   args[0].equalsIgnoreCase(SEARCH)||args[0].equalsIgnoreCase(SEARCH_MIME)||
+				   args[0].equalsIgnoreCase(BASE)||args[0].equalsIgnoreCase(OPERATIONS)){
+					throw new ScriptErrorException(String.format(ARG_ERROR, FEW_ERROR, s));
 				}
 				else if(args[0].equalsIgnoreCase(INDEX)||args[0].equalsIgnoreCase(RESET)||
 					args[0].equalsIgnoreCase(CLEAR)||args[0].equalsIgnoreCase(SYNC)){
 					operations.add(new Command(args[0]));
 				}
 				else{
-					throw new IOException(String.format(INVALID_COMMAND, s));
+					throw new ScriptErrorException(String.format(INVALID_COMMAND, s));
 				}
 			}
 			else{
 				if(args[0].equalsIgnoreCase(ADD)||args[0].equalsIgnoreCase(ADD_MIME)||
 				   args[0].equalsIgnoreCase(GET)||args[0].equalsIgnoreCase(GET_MIME)||
-				   args[0].equalsIgnoreCase(SEARCH)||args[0].equalsIgnoreCase(SEARCH_MIME)){
+				   args[0].equalsIgnoreCase(SEARCH)||args[0].equalsIgnoreCase(SEARCH_MIME)||
+				   args[0].equalsIgnoreCase(BASE)){
 					if(3 < args.length){
-						throw new IOException(String.format(ARG_ERROR, MANY_ERROR, s));
+						throw new ScriptErrorException(String.format(ARG_ERROR, MANY_ERROR, s));
 					}
 					String[] cArgs = new String[args.length-1];
 					for(int i = 1; i < args.length; i++)
 						cArgs[i-1] = args[i];
 					operations.add(new Command(args[0], cArgs));
 				}
+				else if(args[0].equalsIgnoreCase(OPERATIONS)){
+					if(2 < args.length){
+						throw new ScriptErrorException(String.format(ARG_ERROR, MANY_ERROR, s));
+					}
+					else{
+						operations.add(new Command(args[0], new String[]{args[1]}));
+					}
+				}
 				else if(args[0].equalsIgnoreCase(INDEX)){
 					if(2 < args.length){
-						throw new IOException(String.format(ARG_ERROR, MANY_ERROR, s));
+						throw new ScriptErrorException(String.format(ARG_ERROR, MANY_ERROR, s));
 					}
 					if(args[1].equalsIgnoreCase(INDEX_WAIT_SHORT)||
 						args[1].equalsIgnoreCase(INDEX_WAIT_LONG)){
-						operations.add(new Command(args[0], new String[]{INDEX_WAIT_SHORT}));
+						operations.add(new Command(args[0], new String[]{args[1]}));
 						indexWait = true;
+					}
+					else{
+						throw new ScriptErrorException(String.format(INVALID_ARGUMENT, s));
 					}
 				}
 				else if(args[0].equalsIgnoreCase(RESET)||args[0].equalsIgnoreCase(CLEAR)||
 					args[0].equalsIgnoreCase(SYNC)){
-					throw new IOException(String.format(ARG_ERROR, MANY_ERROR, s));
+					throw new ScriptErrorException(String.format(ARG_ERROR, MANY_ERROR, s));
 				}
 				else{
-					throw new IOException(String.format(INVALID_COMMAND, s));
+					throw new ScriptErrorException(String.format(INVALID_COMMAND, s));
 				}
 			}
 		}
+	}
+
+	private void runExplicit() throws IOException {
+		monitor = new Monitor(nThreads);
+		ClientThread[] threads = new ClientThread[nThreads];
+		for(int i = 0; i < nThreads; i++){
+			try{
+				MIE client = new MIEClient(ip, useCache);
+				threads[i] = new ClientThread(operations, i, monitor, client, datasetDir, 0);
+				threads[i].start();
+			}
+			catch(NoSuchAlgorithmException | NoSuchPaddingException e){
+				e.printStackTrace();
+			}
+		}
+		monitor.start();
+		try{
+			for(int i = 0; i < nThreads; i++){
+				System.out.printf("Waiting for thread %d\n", i);
+				threads[i].join();
+				bytesDownload += threads[i].getBytesDownload();
+				bytesUpload += threads[i].getBytesUpload();
+				bytesSearch += threads[i].getBytesSearch();
+				nOperations += threads[i].getNOperations();
+			}
+		}
+		catch(InterruptedException e){
+			e.printStackTrace();
+		}
+		monitor.end();
+		for(int i = 0; i < nThreads; i++){
+			searchStats.merge(threads[i].getSearchStats());
+		}
+		if(searchStats.hasData())
+			System.out.println(searchStats.toString());
+	}
+
+	private void runDescriptive() throws ScriptErrorException, IOException {
+		Command base = null;
+		Map<String, Double> ratios = new HashMap<String, Double>();
+		double total = 0;
+		int nOp = 0;
+		for(Command com: operations){
+			String op = com.getOp();
+			if(op.equalsIgnoreCase(BASE)){
+				if(null == base)
+					base = com;
+			}
+			else if(op.equalsIgnoreCase(OPERATIONS)){
+				try{
+					nOp = Integer.parseInt(com.getArgs()[0]);
+				}
+				catch(NumberFormatException e){
+					throw new ScriptErrorException(String.format(INVALID_ARGUMENT, op+
+						COMMAND_ARGS_SEPARATOR+com.getArgs()[0]));
+				}
+			}
+			else{
+				double arg;
+				try{
+					arg = Double.parseDouble(com.getArgs()[0]);
+				}
+				catch(NumberFormatException e){
+					throw new ScriptErrorException(String.format(INVALID_ARGUMENT, op+
+						COMMAND_ARGS_SEPARATOR+com.getArgs()[0]));
+				}
+				if(!op.equalsIgnoreCase(ADD)&&!op.equalsIgnoreCase(ADD_MIME)&&
+					!op.equalsIgnoreCase(GET)&&!op.equalsIgnoreCase(GET_MIME)&&
+					!op.equalsIgnoreCase(SEARCH)&&!op.equalsIgnoreCase(SEARCH_MIME)){
+					throw new ScriptErrorException(String.format(INVALID_COMMAND, op));
+				}
+				total += arg;
+				Double value = ratios.get(op);
+				if(null == value){
+					ratios.put(op, arg);
+				}
+				else{
+					ratios.put(op, value + arg);
+				}
+			}
+		}
+		Pair<ClientThread,Integer> tmpPair = setupBase(base);
+		ClientThread baseWorker = tmpPair.getKey();
+		int nDocs = null == tmpPair.getValue() ? 0 : tmpPair.getValue();
+		//normalize probabilities representation
+		for(String key: ratios.keySet()){
+			ratios.put(key, ratios.get(key)/total);
+		}
+		//calculate number of each type of operation
+		int[] opDistributionAbs = new int[N_OP_TYPES];
+		int newNOp = 0;
+		for(int i = 0; i < N_OP_TYPES; i++){
+			double prob = getProbability(i, ratios);
+			opDistributionAbs[i] = (int)(prob * nOp);
+			newNOp += opDistributionAbs[i];
+		}
+		//create threads with randomized operations
+		monitor = new Monitor(nThreads);
+		ClientThread[] threads = new ClientThread[nThreads];
+		double[] opSplitProb = new double[N_OP_TYPES-1];
+		for(int i = 0; i < nThreads; i++){
+			Queue<Command> threadQueue = new LinkedList<Command>();
+			int[] nOpDist = opDistributionAbs.clone();
+			int tmpNOp = newNOp;
+			//adjust probability limits
+			updateCumulativeFrequencies(opSplitProb, ratios);
+			Map<String,Double> tmpRatios = null;
+			Random rng = new Random(System.nanoTime());
+			while(0 < tmpNOp){
+				//generate next operation
+				double d = rng.nextDouble();
+				int pi = 0;
+				while(pi < N_OP_TYPES-1){
+					if(d < opSplitProb[pi])
+						break;
+					else
+						pi++;
+				}
+				threadQueue.add(generateCommand(pi, nDocs));
+				//update ratios
+				nOpDist[pi]--;
+				tmpNOp--;
+				tmpRatios = updateRatios(tmpNOp, nOpDist, tmpRatios);
+				updateCumulativeFrequencies(opSplitProb, tmpRatios);
+			}
+			try{
+				MIE client = new MIEClient(ip, useCache);
+				threads[i] = new ClientThread(threadQueue, i, monitor, client, datasetDir,
+					(i+1)*PREFIX_DIVISION);
+				threads[i].start();
+			}
+			catch(NoSuchAlgorithmException | NoSuchPaddingException e){
+				e.printStackTrace();
+				break;
+			}
+		}
+		try{
+			baseWorker.join();
+		}
+		catch(InterruptedException e){
+			e.printStackTrace();
+			return;
+		}
+		System.out.println("Base worker finished");
+		monitor.start();
+		try{
+			for(int i = 0; i < nThreads; i++){
+				System.out.printf("Waiting for thread %d\n", i);
+				threads[i].join();
+				bytesDownload += threads[i].getBytesDownload();
+				bytesUpload += threads[i].getBytesUpload();
+				bytesSearch += threads[i].getBytesSearch();
+				nOperations += threads[i].getNOperations();
+			}
+		}
+		catch(InterruptedException e){
+			e.printStackTrace();
+		}
+		monitor.end();
+		for(int i = 0; i < nThreads; i++){
+			searchStats.merge(threads[i].getSearchStats());
+		}
+		if(searchStats.hasData())
+			System.out.println(searchStats.toString());
+	}
+
+	private Command generateCommand(int probIndex, int nDocs) throws ScriptErrorException {
+		String op = getOpType(probIndex);
+		char mode = TYPE_UNDEFINED;
+		int maxDocs = -1;
+		switch(probIndex){
+			case(ADD_INDEX):
+			maxDocs = getMaxDocs(TYPE_UNSTRUCTURED);
+			break;
+			case(ADD_MIME_INDEX):
+			maxDocs = getMaxDocs(TYPE_MIME);
+		}
+		int limit = -1 != maxDocs ? maxDocs : nDocs;
+		Random rng = new Random(System.nanoTime());
+		int arg = (int)(rng.nextDouble()*limit);
+		return new Command(op, new String[]{""+arg});
+	}
+
+	private void updateCumulativeFrequencies(double[] opSplitProb, Map<String,Double> ratios) {
+		double prob = 0;
+		for(int pi = 0; pi < N_OP_TYPES-1; pi++){
+			prob += getProbability(pi, ratios);
+			opSplitProb[pi] = prob;
+		}
+	}
+
+	private Map<String,Double> updateRatios(int newNOp, int[] opDistAbs,
+		Map<String,Double> ratios) {
+		if(null == ratios)
+			ratios = new HashMap<String,Double>();
+		for(int i = 0; i < N_OP_TYPES; i++){
+			double newRatio = (double)opDistAbs[i]/(double)newNOp;
+			ratios.put(getOpType(i), newRatio);
+		}
+		return ratios;
+	}
+
+	private double getProbability(int index, Map<String,Double> ratios) {
+		Double tmp = ratios.get(getOpType(index));
+		return null == tmp ? 0 : tmp;
+	}
+
+	private String getOpType(int index) {
+		String op = null;
+		switch(index){
+			case(ADD_INDEX):
+			op = ADD;
+			break;
+			case(SEARCH_INDEX):
+			op = SEARCH;
+			break;
+			case(GET_INDEX):
+			op = GET;
+			break;
+			case(ADD_MIME_INDEX):
+			op = ADD_MIME;
+			break;
+			case(SEARCH_MIME_INDEX):
+			op = SEARCH_MIME;
+			break;
+			case(GET_MIME_INDEX):
+			op = GET_MIME;
+			break;
+		}
+		return op;
+	}
+
+	private Pair<ClientThread, Integer> setupBase(Command base) throws ScriptErrorException,
+			IOException {
+		if(null == base)
+			return new Pair<ClientThread, Integer>(null, null);
+		String arg = base.getArgs()[0];
+		int index = arg.length()-1;
+		char mode = arg.charAt(index);
+		int nDocs;
+		try{
+			nDocs = Integer.parseInt(arg.substring(0, index))-1;
+		}
+		catch(NumberFormatException e){
+			throw new ScriptErrorException(String.format(INVALID_ARGUMENT, base.getOp()+
+						COMMAND_ARGS_SEPARATOR+base.getArgs()[0]));
+		}
+		int maxDocs = getMaxDocs(mode)-1;
+		Queue<Command> baseSetup = new LinkedList<Command>();
+		String op = "";
+		switch(mode){
+			case(TYPE_UNSTRUCTURED):
+			op = ADD;
+			break;
+			case(TYPE_MIME):
+			op = ADD_MIME;
+			break;
+			default:
+			throw new ScriptErrorException(String.format(INVALID_DOCUMENT_TYPE, arg));
+		}
+		if(nDocs > maxDocs)
+			nDocs = maxDocs;
+		baseSetup.add(new Command(op, new String[]{"0", ""+nDocs}));
+		baseSetup.add(new Command(INDEX, new String[]{INDEX_WAIT_SHORT}));
+		try{
+			MIE client = new MIEClient(ip, useCache);
+			Monitor m = new Monitor(1);
+			ClientThread thread = new ClientThread(baseSetup, 0, m, client, datasetDir, 0);
+			thread.start();
+			m.start();
+			return new Pair<ClientThread,Integer>(thread, nDocs);
+		}
+		catch(NoSuchAlgorithmException | NoSuchPaddingException e){
+			e.printStackTrace();
+			return new Pair<ClientThread,Integer>(null, nDocs);
+		}
+	}
+
+	private int getMaxDocs(char type) throws ScriptErrorException {
+		int maxDocs = 0;
+		switch(type){
+			case(TYPE_UNSTRUCTURED):
+			String[] imgs = new File(datasetDir, "imgs").list();
+			String[] txts = new File(datasetDir, "tags").list();
+			maxDocs = imgs.length > txts.length ? txts.length : imgs.length;
+			break;
+			case(TYPE_MIME):
+			maxDocs = new File(datasetDir, "mime").list().length;
+			break;
+			default:
+			throw new ScriptErrorException(String.format(INVALID_DOCUMENT_TYPE, ""+type));
+		}
+		return maxDocs;
 	}
 }

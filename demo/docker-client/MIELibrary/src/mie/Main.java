@@ -41,6 +41,7 @@ import mie.utils.Pair;
 import mie.utils.Monitor;
 import mie.utils.SearchStats;
 import mie.utils.TestSet;
+import mie.utils.ScriptErrorException;
 
 public class Main {
 
@@ -215,8 +216,13 @@ public class Main {
 					File script = new File(command.getArgs()[0]);
 					if(script.exists()){
 						TestSet test = new TestSet(script);
-						test.start();
-						System.out.printf(test.toString());
+						try{
+							test.start();
+							System.out.printf(test.toString());
+						}
+						catch(ScriptErrorException e){
+							e.printStackTrace();
+						}
 					}
 				}
 				else if(command.getOp().equalsIgnoreCase("print")){
