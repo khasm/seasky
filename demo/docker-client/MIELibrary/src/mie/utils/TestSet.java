@@ -5,6 +5,7 @@ import java.io.FileReader;
 import java.io.BufferedReader;
 import java.io.IOException;
 import java.util.Queue;
+import java.util.List;
 import java.util.LinkedList;
 import java.util.Map;
 import java.util.HashMap;
@@ -24,16 +25,14 @@ public class TestSet {
 	private static final String LOD_DIR_OPTION = "logdir";
 	private static final String DATASET_OPTION = "path";
 	private static final String MODE_OPTION = "mode";
+	private static final String CACHE_OPTION = "cache";
 	private static final String OP_SEQUENCE = "ops";
-	//default option values
-	private static final String DEFAULT_IP = "locahost";
-	private static final String DEFAULT_DATASET_DIR = "/datasets";
-	private static final String DEFAULT_LOG_DIR = "/logs";
-	private static final int DEFAULT_THREADS = 1;
 	//option values
 	private static final String EXPLICIT_MODE = "explicit";
 	private static final String DESCRIPTIVE_MODE = "descriptive";
 	private static final String UNDEFINED_MODE = "";
+	private static final String USE_CACHE_TRUE = "true";
+	private static final String USE_CACHE_FALSE = "false";
 	//error strings
 	private static final String PARSING_ERROR_FORMAT = "Parsing error for %s on line %d: %s";
 	private static final String ARG_ERROR = "Too %s arguments for %s";
@@ -55,6 +54,7 @@ public class TestSet {
 	public static final String RESET = "reset";
 	public static final String CLEAR = "clear";
 	public static final String SYNC = "sync";
+	public static final String WAIT = "wait";
 	public static final String BASE = "base";
 	public static final String OPERATIONS = "operations";
 	//command args
@@ -62,6 +62,19 @@ public class TestSet {
 	private static final String INDEX_WAIT_LONG = "wait";
 	private static final char TYPE_UNSTRUCTURED = 'u';
 	private static final char TYPE_MIME = 'm';
+	private static final String CACHE_CLIENT_80_USER = "client80";
+	private static final String CACHE_CLIENT_100_USER = "client100";
+	private static final String CACHE_SERVER_80_USER = "server80";
+	private static final String CACHE_SERVER_100_USER = "server100";
+	private static final String CACHE_DOUBLE_USER = "double";
+	private static final boolean NO_CACHE = false;
+	private static final boolean USE_CACHE = true;
+	private static final int CACHE_DISABLED = 0;
+	private static final int CACHE_CLIENT_80 = 1;
+	private static final int CACHE_CLIENT_100 = 2;
+	private static final int CACHE_SERVER_80 = 3;
+	private static final int CACHE_SERVER_100 = 4;
+	private static final int CACHE_DOUBLE = 5;
 	//script keywords
 	private static final String SINGLE_LINE_COMMENT = "//";
 	private static final String MULTI_LINE_COMMENT_BEGIN = "/*";
@@ -69,20 +82,23 @@ public class TestSet {
 	private static final String KEY_VALUE_SEPARATOR = "=";
 	private static final String OPS_SEQUENCE_SPLIT_REGEX = "[,;]";
 	private static final String COMMAND_ARGS_SEPARATOR = " ";
+	//default option values
+	private static final String DEFAULT_IP = "locahost";
+	private static final String DEFAULT_DATASET_DIR = "/datasets";
+	private static final String DEFAULT_LOG_DIR = "/logs";
+	private static final int DEFAULT_THREADS = 1;
+	private static final boolean DEFAULT_CACHE = NO_CACHE;
 	//queue automatic generation
 	private static final int PREFIX_DIVISION = 1000;
-	private static final int N_OP_TYPES = 6;
+	private static final char TYPE_UNDEFINED = '«';
+	private static final int N_OP_TYPES = 6; //if adding more operation types adjust this value
 	private static final int ADD_INDEX = 0;
 	private static final int SEARCH_INDEX = 1;
 	private static final int GET_INDEX = 2;
 	private static final int ADD_MIME_INDEX = 3;
 	private static final int SEARCH_MIME_INDEX = 4;
 	private static final int GET_MIME_INDEX = 5;
-	private static final char TYPE_UNDEFINED = '«';
 
-
-	private SearchStats searchStats;
-	private Monitor monitor;
 	private String ip;
 	private String mode;
 	private File script;
@@ -94,25 +110,27 @@ public class TestSet {
 	private long bytesUpload;
 	private long bytesSearch;
 	private long bytesDownload;
-	private boolean useCache;
 	private boolean indexWait;
+	private boolean cache;
+	private SearchStats searchStats;
+	private Monitor monitor;
 
 	public TestSet(File script) {
-		this.script = script;
 		ip = DEFAULT_IP;
+		mode = UNDEFINED_MODE;
+		this.script = script;
 		datasetDir = new File(DEFAULT_DATASET_DIR);
 		logDir = new File(DEFAULT_LOG_DIR);
-		nThreads = DEFAULT_THREADS;
-		mode = UNDEFINED_MODE;
 		operations = new LinkedList<Command>();
-		useCache = false;
-		searchStats = new SearchStats();
-		monitor = new Monitor(nThreads);
-		indexWait = false;
+		nThreads = DEFAULT_THREADS;
+		nOperations = 0;
+		cache = DEFAULT_CACHE;
 		bytesUpload = 0;
 		bytesSearch = 0;
 		bytesDownload = 0;
-		nOperations = 0;
+		indexWait = false;
+		searchStats = new SearchStats();
+		monitor = new Monitor(nThreads);
 	}
 
 	public void start() throws IOException, ScriptErrorException {
@@ -147,7 +165,7 @@ public class TestSet {
 		StringBuffer serverSide = new StringBuffer();
 		float indexWaitValue = 0;
 		try{
-			client = new MIEClient(ip, useCache);
+			client = new MIEClient(ip, cache);
 			networkTime = client.getNetworkTime()/1000000000f;
 			Map<String,String> stats = client.printServerStatistics();
 			for(String key: stats.keySet()){
@@ -244,6 +262,14 @@ public class TestSet {
 			else if(newLine.equals(MODE_OPTION)){
 				mode = option;
 			}
+			else if(newLine.equals(CACHE_OPTION)){
+				if(option.equalsIgnoreCase(USE_CACHE_TRUE)){
+					cache = USE_CACHE;
+				}
+				else if(option.equalsIgnoreCase(USE_CACHE_FALSE)){
+					cache = NO_CACHE;
+				}
+			}
 			else if(newLine.equals(OP_SEQUENCE)){
 				opsSequence = option;
 			}
@@ -262,7 +288,8 @@ public class TestSet {
 				if(args[0].equalsIgnoreCase(ADD)||args[0].equalsIgnoreCase(ADD_MIME)||
 				   args[0].equalsIgnoreCase(GET)||args[0].equalsIgnoreCase(GET_MIME)||
 				   args[0].equalsIgnoreCase(SEARCH)||args[0].equalsIgnoreCase(SEARCH_MIME)||
-				   args[0].equalsIgnoreCase(BASE)||args[0].equalsIgnoreCase(OPERATIONS)){
+				   args[0].equalsIgnoreCase(BASE)||args[0].equalsIgnoreCase(OPERATIONS)||
+				   args[0].equalsIgnoreCase(WAIT)){
 					throw new ScriptErrorException(String.format(ARG_ERROR, FEW_ERROR, s));
 				}
 				else if(args[0].equalsIgnoreCase(INDEX)||args[0].equalsIgnoreCase(RESET)||
@@ -286,7 +313,7 @@ public class TestSet {
 						cArgs[i-1] = args[i];
 					operations.add(new Command(args[0], cArgs));
 				}
-				else if(args[0].equalsIgnoreCase(OPERATIONS)){
+				else if(args[0].equalsIgnoreCase(OPERATIONS)||args[0].equalsIgnoreCase(WAIT)){
 					if(2 < args.length){
 						throw new ScriptErrorException(String.format(ARG_ERROR, MANY_ERROR, s));
 					}
@@ -323,7 +350,7 @@ public class TestSet {
 		ClientThread[] threads = new ClientThread[nThreads];
 		for(int i = 0; i < nThreads; i++){
 			try{
-				MIE client = new MIEClient(ip, useCache);
+				MIE client = new MIEClient(ip, cache);
 				threads[i] = new ClientThread(operations, i, monitor, client, datasetDir, 0);
 				threads[i].start();
 			}
@@ -358,6 +385,7 @@ public class TestSet {
 		Map<String, Double> ratios = new HashMap<String, Double>();
 		double total = 0;
 		int nOp = 0;
+		int cacheMode = CACHE_DISABLED;
 		for(Command com: operations){
 			String op = com.getOp();
 			if(op.equalsIgnoreCase(BASE)){
@@ -374,16 +402,39 @@ public class TestSet {
 				}
 			}
 			else{
+				String[] args = com.getArgs();
 				double arg;
 				try{
-					arg = Double.parseDouble(com.getArgs()[0]);
+					arg = Double.parseDouble(args[0]);
 				}
 				catch(NumberFormatException e){
 					throw new ScriptErrorException(String.format(INVALID_ARGUMENT, op+
-						COMMAND_ARGS_SEPARATOR+com.getArgs()[0]));
+						COMMAND_ARGS_SEPARATOR+args[0]));
 				}
-				if(!op.equalsIgnoreCase(ADD)&&!op.equalsIgnoreCase(ADD_MIME)&&
-					!op.equalsIgnoreCase(GET)&&!op.equalsIgnoreCase(GET_MIME)&&
+				if(op.equalsIgnoreCase(GET) || op.equalsIgnoreCase(GET_MIME)){
+					if(2 == args.length){
+						if(args[1].equalsIgnoreCase(CACHE_CLIENT_80_USER)){
+							cacheMode = CACHE_CLIENT_80;
+						}
+						else if(args[1].equalsIgnoreCase(CACHE_CLIENT_100_USER)){
+							cacheMode = CACHE_CLIENT_100;
+						}
+						else if(args[1].equalsIgnoreCase(CACHE_SERVER_80_USER)){
+							cacheMode = CACHE_SERVER_80;
+						}
+						else if(args[1].equalsIgnoreCase(CACHE_SERVER_100_USER)){
+							cacheMode = CACHE_SERVER_100;
+						}
+						else if(args[1].equalsIgnoreCase(CACHE_DOUBLE_USER)){
+							cacheMode = CACHE_DOUBLE;
+						}
+						else{
+							throw new ScriptErrorException(String.format(INVALID_ARGUMENT, op+
+								COMMAND_ARGS_SEPARATOR+args[0]+COMMAND_ARGS_SEPARATOR+args[1]));
+						}
+					}
+				}
+				else if(!op.equalsIgnoreCase(ADD)&&!op.equalsIgnoreCase(ADD_MIME)&&
 					!op.equalsIgnoreCase(SEARCH)&&!op.equalsIgnoreCase(SEARCH_MIME)){
 					throw new ScriptErrorException(String.format(INVALID_COMMAND, op));
 				}
@@ -424,6 +475,12 @@ public class TestSet {
 			updateCumulativeFrequencies(opSplitProb, ratios);
 			Map<String,Double> tmpRatios = null;
 			Random rng = new Random(System.nanoTime());
+			int idsU[] = CACHE_DISABLED == cacheMode ? null : getIds(0, nDocs,
+				opDistributionAbs[GET_INDEX]);
+			int idsM[] = CACHE_DISABLED == cacheMode ? null : getIds(0, nDocs,
+				opDistributionAbs[GET_MIME_INDEX]);
+			int indexU = 0;
+			int indexM = 0;
 			while(0 < tmpNOp){
 				//generate next operation
 				double d = rng.nextDouble();
@@ -434,7 +491,18 @@ public class TestSet {
 					else
 						pi++;
 				}
-				threadQueue.add(generateCommand(pi, nDocs));
+				int[] ids = null;
+				int index = 0;
+				switch(pi){
+					case(GET_INDEX):
+					ids = idsU;
+					index = indexU++;
+					break;
+					case(GET_MIME_INDEX):
+					ids = idsM;
+					index = indexM++;
+				}
+				threadQueue.add(generateCommand(pi, nDocs, ids, index));
 				//update ratios
 				nOpDist[pi]--;
 				tmpNOp--;
@@ -442,7 +510,7 @@ public class TestSet {
 				updateCumulativeFrequencies(opSplitProb, tmpRatios);
 			}
 			try{
-				MIE client = new MIEClient(ip, useCache);
+				MIE client = new MIEClient(ip, cache);
 				threads[i] = new ClientThread(threadQueue, i, monitor, client, datasetDir,
 					(i+1)*PREFIX_DIVISION);
 				threads[i].start();
@@ -482,20 +550,29 @@ public class TestSet {
 			System.out.println(searchStats.toString());
 	}
 
-	private Command generateCommand(int probIndex, int nDocs) throws ScriptErrorException {
+	private Command generateCommand(int probIndex, int nDocs, int[] ids, int index)
+		throws ScriptErrorException {
 		String op = getOpType(probIndex);
 		char mode = TYPE_UNDEFINED;
 		int maxDocs = -1;
+		int arg = -1;
 		switch(probIndex){
 			case(ADD_INDEX):
 			maxDocs = getMaxDocs(TYPE_UNSTRUCTURED);
 			break;
 			case(ADD_MIME_INDEX):
 			maxDocs = getMaxDocs(TYPE_MIME);
+			break;
+			case(GET_INDEX):
+			case(GET_MIME_INDEX):
+			if(null != ids)
+				arg = ids[index];
 		}
-		int limit = -1 != maxDocs ? maxDocs : nDocs;
-		Random rng = new Random(System.nanoTime());
-		int arg = (int)(rng.nextDouble()*limit);
+		if(-1 == arg){
+			int limit = -1 != maxDocs ? maxDocs : nDocs;
+			Random rng = new Random(System.nanoTime());
+			arg = (int)(rng.nextDouble()*limit);
+		}
 		return new Command(op, new String[]{""+arg});
 	}
 
@@ -581,7 +658,7 @@ public class TestSet {
 		baseSetup.add(new Command(op, new String[]{"0", ""+nDocs}));
 		baseSetup.add(new Command(INDEX, new String[]{INDEX_WAIT_SHORT}));
 		try{
-			MIE client = new MIEClient(ip, useCache);
+			MIE client = new MIEClient(ip, cache);
 			Monitor m = new Monitor(1);
 			ClientThread thread = new ClientThread(baseSetup, 0, m, client, datasetDir, 0);
 			thread.start();
@@ -609,5 +686,35 @@ public class TestSet {
 			throw new ScriptErrorException(String.format(INVALID_DOCUMENT_TYPE, ""+type));
 		}
 		return maxDocs;
+	}
+
+	public static int[] getIds(int min, int max, int length){
+		int[] ids = new int[length];
+		if(0 == length)
+			return ids;
+		List<Integer> not_used = new LinkedList<Integer>();
+		Random rng = new Random(53234);
+		int tmp = max - min + 1;
+		//put all values between min and max in an array
+		for(int i = 0; i < tmp; i++)
+			not_used.add(min + i);
+		//this algorithm will be biased towards the first random selected
+		//to help offset that, the first ~5% of ids will always be random
+		//and different, with a minimum of 1 time
+		int randomizer = (int)Math.nextUp(length / 20);
+		for(int i = 0; i < ids.length; i++){
+			double req = rng.nextDouble();
+			//pick a not used value 20% of the time (always pick one for the first X times)
+			if(req > 0.8 || i < randomizer){
+				int index = (int)(rng.nextDouble()*not_used.size());
+				ids[i] = not_used.remove(index);
+			}
+			//pick an already used value 80% of the time
+			else{
+				int index = (int)(rng.nextDouble()*i);
+				ids[i] = ids[index];
+			}
+		}
+		return ids;
 	}
 }

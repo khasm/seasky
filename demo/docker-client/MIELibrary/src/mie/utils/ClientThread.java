@@ -34,6 +34,7 @@ public class ClientThread extends Thread {
 	private int threadId;
 	private int nOperations;
 	private int prefix;
+	private int nextSingleOp;
 	private long bytesUpload;
 	private long bytesSearch;
 	private long bytesDownload;
@@ -51,6 +52,7 @@ public class ClientThread extends Thread {
 		bytesSearch = 0;
 		bytesDownload = 0;
 		nOperations = 0;
+		nextSingleOp = 1;
 	}
 
 	public void run() {
@@ -140,6 +142,25 @@ public class ClientThread extends Thread {
 				}
 				else if(op.equalsIgnoreCase(TestSet.SYNC)){
 					monitor.waitForAll();
+				}
+				else if(op.equalsIgnoreCase(TestSet.RESET)){
+					if(monitor.canExecute(nextSingleOp++)){
+						mie.resetServerCache();
+					}
+				}
+				else if(op.equalsIgnoreCase(TestSet.CLEAR)){
+					if(monitor.canExecute(nextSingleOp++)){
+						mie.clearServerTimes();
+					}
+				}
+				else if(op.equalsIgnoreCase(TestSet.WAIT)){
+					try{
+						int seconds = Integer.parseInt(command.getArgs()[0]);
+						monitor.waitFor(seconds);
+					}
+					catch(NumberFormatException e){
+						e.printStackTrace();
+					}
 				}
 			}
 			catch(IOException | MessagingException e){
@@ -283,10 +304,10 @@ public class ClientThread extends Thread {
 		int[] ids;
 		switch(cacheMode){
 		case(1):
-			ids = getIds(first, last);
+			ids = TestSet.getIds(first, last, last-first+1);
 			break;
 		case(2):
-			ids = getIds(first, last);
+			ids = TestSet.getIds(first, last, last-first+1);
 			for(int i: ids){
 				if(!added.contains(i)){
 					byte[] img = readImg(i);
@@ -302,7 +323,7 @@ public class ClientThread extends Thread {
 			}
 			break;
 		case(3):
-			ids = getIds(first, last);
+			ids = TestSet.getIds(first, last, last-first+1);
 			for(int i: ids){
 				if(!added.contains(i)){
 					mie.getUnstructuredDoc(i+"", true);
@@ -322,7 +343,7 @@ public class ClientThread extends Thread {
 			//second: retrieve ~80% of those unique documents to
 			//populate the server cache
 			//third: clear the client cache
-			ids = getIds(first, last);
+			ids = TestSet.getIds(first, last, last-first+1);
 			for(int i: ids){
 				if(!added.contains(i)){
 					added.add(i);
@@ -343,28 +364,6 @@ public class ClientThread extends Thread {
 			ids = new int[last-first+1];
 			for(int i = first; i <=last; i++){
 				ids[i-first] = i;
-			}
-		}
-		return ids;
-	}
-
-	private int[] getIds(int min, int max){
-		int[] ids = new int[max-min+1];
-		boolean[] used = new boolean[max-min+1];
-		List<Integer> not_used = new LinkedList<Integer>();
-		Random rng = new Random(53234);
-		for(int i = min; i < max; i++)
-			not_used.add(i-min);
-		for(int i = 0; i < ids.length; i++){
-			double req = rng.nextDouble();
-			if(req>0.8 || i < 1){
-				int index = (int)(rng.nextDouble()*not_used.size());
-				ids[i] = not_used.remove(index);
-				used[ids[i]-min] = true;
-			}
-			else{
-				int index = (int)(rng.nextDouble()*i);
-				ids[i] = ids[index];
 			}
 		}
 		return ids;

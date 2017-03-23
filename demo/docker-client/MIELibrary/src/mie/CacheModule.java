@@ -16,8 +16,9 @@ public class CacheModule implements Cache {
 	private int cacheLimit;
 	private int cacheSize;
 	private long maxTTL;
-	private double totalReads;
-	private double totalHits;
+	private static double totalReads = 0;
+	private static double totalHits = 0;
+	private static final Object lock = new Object();
 	
 	public CacheModule(){
 		this(DEFAULT_MAX_CACHE_SIZE, DEFAULT_MAX_TTL);
@@ -58,15 +59,17 @@ public class CacheModule implements Cache {
 	@Override
 	public byte[] getFromCache(String id) {
 		CacheEntry entry;
-		synchronized (this) {
+		synchronized (lock) {
 			totalReads++;
+		}
+		synchronized(this){
 			entry = cache.get(id);
 		}
 		if(entry != null){
 			long ttl = Math.abs(System.nanoTime()-entry.lastAccessed);
 			if(ttl < maxTTL){
 				///cache entry is fresh enough
-				synchronized(this){
+				synchronized(lock){
 					totalHits++;
 				}
 				return entry.contents;
@@ -143,15 +146,19 @@ public class CacheModule implements Cache {
 
 	@Override
 	public void resetStats() {
-		totalHits = 0;
-		totalReads = 0;
+		synchronized(lock){
+			totalHits = 0;
+			totalReads = 0;
+		}
 	}
 
 	@Override
 	public double getHitRatio() {
-		if(totalReads > 0)
-			return totalHits / totalReads * 100;
-		else
-			return 0;
+		synchronized(lock){
+			if(totalReads > 0)
+				return totalHits / totalReads * 100;
+			else
+				return 0;
+		}
 	}
 }
