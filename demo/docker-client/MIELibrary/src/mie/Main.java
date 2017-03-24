@@ -52,6 +52,7 @@ public class Main {
 	private static long totalTime = 0;
 	private static String datasetPath = ".";
 	private static String logDirPath = "/logs";
+	private static String scriptPath = "/scripts";
 	private static List<List<Pair<Long,String>>> threadLogs;
 	private static SearchStats searchStats;
 	
@@ -163,7 +164,8 @@ public class Main {
 				}
 				else if(args[nextArg].equalsIgnoreCase("ip") ||
 					args[nextArg].equalsIgnoreCase("path") ||
-					args[nextArg].equalsIgnoreCase("logdir")){
+					args[nextArg].equalsIgnoreCase("logdir")||
+					args[nextArg].equalsIgnoreCase("script_path")){
 					try{
 						queue.add(new Command(args[nextArg], new String[]{args[nextArg+1]}));
 						nextArg += 2;
@@ -206,6 +208,9 @@ public class Main {
 				else if(command.getOp().equalsIgnoreCase("nocache")){
 					useCache = false;
 				}
+				else if(command.getOp().equalsIgnoreCase("script_path")){
+					scriptPath = command.getArgs()[0];
+				}
 				else if(command.getOp().equalsIgnoreCase("compare")){
 					compareCBIR();
 				}
@@ -213,7 +218,7 @@ public class Main {
 					n_threads = Integer.parseInt(command.getArgs()[0]);
 				}
 				else if(command.getOp().equalsIgnoreCase("script")){
-					File script = new File(command.getArgs()[0]);
+					File script = new File(new File(scriptPath), command.getArgs()[0]);
 					if(script.exists()){
 						TestSet test = new TestSet(script);
 						try{

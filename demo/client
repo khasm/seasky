@@ -2,6 +2,7 @@
 
 LOG=$PWD"/logs"
 DATASET=$PWD"/datasets"
+SCRIPTS=$PWD"/scripts"
 
 stat $DATASET > /dev/null 2>&1
 if [ "$?" != 0 ]; then
@@ -15,4 +16,9 @@ if [ "$?" != 0 ]; then
 	mkdir logs
 fi
 
-docker run --rm --net=host --name=client -v $LOG":/logs" -v $DATASET":/datasets" mie_client custom "$@"
+stat $SCRITPS > /dev/null 2>&1
+if [ "$?" != 0 ]; then
+	mkdir scripts
+fi
+
+docker run --rm --net=host --name=client -v $LOG":/logs" -v $DATASET":/datasets" -v $SCRIPTS":/scripts" mie_client custom "$@"
