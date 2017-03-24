@@ -22,4 +22,6 @@ public interface ServerConnector {
 	public boolean clearTimes();
 
 	public boolean resetCache();
+
+	public String getServerIp();
 }

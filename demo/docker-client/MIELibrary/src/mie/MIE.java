@@ -122,5 +122,7 @@ public interface MIE {
 	public void resetServerCache();
 
 	public long getNetworkTime();
+
+	public String getServerIp();
 	
 }

@@ -9,6 +9,8 @@ import java.util.List;
 import java.util.LinkedList;
 import java.util.Map;
 import java.util.HashMap;
+import java.util.Set;
+import java.util.HashSet;
 import java.util.Random;
 import java.security.NoSuchAlgorithmException;
 import javax.crypto.NoSuchPaddingException;
@@ -62,19 +64,17 @@ public class TestSet {
 	private static final String INDEX_WAIT_LONG = "wait";
 	private static final char TYPE_UNSTRUCTURED = 'u';
 	private static final char TYPE_MIME = 'm';
-	private static final String CACHE_CLIENT_80_USER = "client80";
-	private static final String CACHE_CLIENT_100_USER = "client100";
-	private static final String CACHE_SERVER_80_USER = "server80";
-	private static final String CACHE_SERVER_100_USER = "server100";
-	private static final String CACHE_DOUBLE_USER = "double";
+	protected static final String CACHE_80_USER = "cache80";
+	protected static final String CACHE_CLIENT_100_USER = "client100";
+	protected static final String CACHE_SERVER_100_USER = "server100";
+	protected static final String CACHE_DOUBLE_USER = "double";
 	private static final boolean NO_CACHE = false;
 	private static final boolean USE_CACHE = true;
-	private static final int CACHE_DISABLED = 0;
-	private static final int CACHE_CLIENT_80 = 1;
-	private static final int CACHE_CLIENT_100 = 2;
-	private static final int CACHE_SERVER_80 = 3;
-	private static final int CACHE_SERVER_100 = 4;
-	private static final int CACHE_DOUBLE = 5;
+	protected static final int CACHE_DISABLED = 0;
+	protected static final int CACHE_80 = 1;
+	protected static final int CACHE_CLIENT_100 = 2;
+	protected static final int CACHE_SERVER_100 = 3;
+	protected static final int CACHE_DOUBLE = 4;
 	//script keywords
 	private static final String SINGLE_LINE_COMMENT = "//";
 	private static final String MULTI_LINE_COMMENT_BEGIN = "/*";
@@ -413,14 +413,11 @@ public class TestSet {
 				}
 				if(op.equalsIgnoreCase(GET) || op.equalsIgnoreCase(GET_MIME)){
 					if(2 == args.length){
-						if(args[1].equalsIgnoreCase(CACHE_CLIENT_80_USER)){
-							cacheMode = CACHE_CLIENT_80;
+						if(args[1].equalsIgnoreCase(CACHE_80_USER)){
+							cacheMode = CACHE_80;
 						}
 						else if(args[1].equalsIgnoreCase(CACHE_CLIENT_100_USER)){
 							cacheMode = CACHE_CLIENT_100;
-						}
-						else if(args[1].equalsIgnoreCase(CACHE_SERVER_80_USER)){
-							cacheMode = CACHE_SERVER_80;
 						}
 						else if(args[1].equalsIgnoreCase(CACHE_SERVER_100_USER)){
 							cacheMode = CACHE_SERVER_100;
@@ -467,6 +464,7 @@ public class TestSet {
 		monitor = new Monitor(nThreads);
 		ClientThread[] threads = new ClientThread[nThreads];
 		double[] opSplitProb = new double[N_OP_TYPES-1];
+		Set<Integer> toAdd = new HashSet<Integer>();
 		for(int i = 0; i < nThreads; i++){
 			Queue<Command> threadQueue = new LinkedList<Command>();
 			int[] nOpDist = opDistributionAbs.clone();
@@ -479,6 +477,12 @@ public class TestSet {
 				opDistributionAbs[GET_INDEX]);
 			int idsM[] = CACHE_DISABLED == cacheMode ? null : getIds(0, nDocs,
 				opDistributionAbs[GET_MIME_INDEX]);
+			for(int iu: idsU){
+				toAdd.add(iu);
+			}
+			for(int im: idsM){
+				toAdd.add(im);
+			}
 			int indexU = 0;
 			int indexM = 0;
 			while(0 < tmpNOp){
@@ -522,6 +526,13 @@ public class TestSet {
 		}
 		try{
 			baseWorker.join();
+			boolean complete = false;
+			switch(cacheMode){
+				case(CACHE_SERVER_100):
+				complete = true;
+				case(CACHE_DOUBLE):
+				setupServerCache(toAdd, complete, ip);
+			}
 		}
 		catch(InterruptedException e){
 			e.printStackTrace();
@@ -686,6 +697,36 @@ public class TestSet {
 			throw new ScriptErrorException(String.format(INVALID_DOCUMENT_TYPE, ""+type));
 		}
 		return maxDocs;
+	}
+
+	protected static void setupServerCache(Set<Integer> toAdd, boolean complete, String ip) {
+		MIE mie = null;
+		try{
+			mie = new MIEClient(ip, false);
+		}
+		catch(NoSuchAlgorithmException | NoSuchPaddingException | IOException e){
+			e.printStackTrace();
+			return;
+		}
+		if(complete){
+			for(Integer i: toAdd){
+				mie.getUnstructuredDoc(i+"", true);
+			}
+			mie.clearServerTimes();
+			mie.clearCache();
+			TimeSpec.reset();
+		}
+		else{
+			int n = toAdd.size();
+			double nc = n/10.0*8.0;
+			Integer[] intg = toAdd.toArray(new Integer[0]);
+			for(int i = 0; i < nc; i++){
+				mie.getUnstructuredDoc(intg[i]+"", true);
+			}
+		}
+		mie.clearServerTimes();
+		mie.clearCache();
+		TimeSpec.reset();
 	}
 
 	public static int[] getIds(int min, int max, int length){

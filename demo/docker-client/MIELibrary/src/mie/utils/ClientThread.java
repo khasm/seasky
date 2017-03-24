@@ -108,19 +108,19 @@ public class ClientThread extends Thread {
 						searchMime(first, last);
 					}
 					else{
-						int cacheMode = 0;
+						int cacheMode = TestSet.CACHE_DISABLED;
 						if(first != last && 2 < command.getArgs().length){
-							if(command.getArgs()[2].equalsIgnoreCase("cache80")){
-								cacheMode = 1;
+							if(command.getArgs()[2].equalsIgnoreCase(TestSet.CACHE_80_USER)){
+								cacheMode = TestSet.CACHE_80;
 							}
-							else if(command.getArgs()[2].equalsIgnoreCase("cache_client100")){
-								cacheMode = 2;
+							else if(command.getArgs()[2].equalsIgnoreCase(TestSet.CACHE_CLIENT_100_USER)){
+								cacheMode = TestSet.CACHE_CLIENT_100;
 							}
-							else if(command.getArgs()[2].equalsIgnoreCase("cache_server100")){
-								cacheMode = 3;
+							else if(command.getArgs()[2].equalsIgnoreCase(TestSet.CACHE_SERVER_100_USER)){
+								cacheMode = TestSet.CACHE_SERVER_100;
 							}
-							else if(command.getArgs()[2].equalsIgnoreCase("double_cache")){
-								cacheMode = 4;
+							else if(command.getArgs()[2].equalsIgnoreCase(TestSet.CACHE_DOUBLE_USER)){
+								cacheMode = TestSet.CACHE_DOUBLE;
 							}
 						}
 						int[] ids = setupGet(cacheMode, first, last);
@@ -303,10 +303,10 @@ public class ClientThread extends Thread {
 		Cache c = ((MIEClient)mie).cache;
 		int[] ids;
 		switch(cacheMode){
-		case(1):
+		case(TestSet.CACHE_80):
 			ids = TestSet.getIds(first, last, last-first+1);
 			break;
-		case(2):
+		case(TestSet.CACHE_CLIENT_100):
 			ids = TestSet.getIds(first, last, last-first+1);
 			for(int i: ids){
 				if(!added.contains(i)){
@@ -322,21 +322,16 @@ public class ClientThread extends Thread {
 				}
 			}
 			break;
-		case(3):
+		case(TestSet.CACHE_SERVER_100):
 			ids = TestSet.getIds(first, last, last-first+1);
 			for(int i: ids){
 				if(!added.contains(i)){
-					mie.getUnstructuredDoc(i+"", true);
 					added.add(i);
 				}
 			}
-			mie.clearServerTimes();
-			//TODO: this reset makes times inaccurate with concurrency
-			TimeSpec.reset();
-			c.clear();
-			c.resetStats();
+			TestSet.setupServerCache(added, true, mie.getServerIp());
 			break;
-		case(4):
+		case(TestSet.CACHE_DOUBLE):
 			//need to do 3 steps for 80% hit rate on both caches
 			//first: get a list of the unique documents going to be
 			//retrieved
@@ -349,16 +344,7 @@ public class ClientThread extends Thread {
 					added.add(i);
 				}
 			}
-			int n = added.size();
-			double nc = n/10.0*8.0;
-			Integer[] intg = added.toArray(new Integer[0]);
-			for(int i = 0; i < nc; i++){
-				mie.getUnstructuredDoc(intg[i]+"", true);
-			}
-			mie.clearServerTimes();
-			TimeSpec.reset();
-			c.clear();
-			c.resetStats();
+			TestSet.setupServerCache(added, false, mie.getServerIp());
 			break;
 		default:
 			ids = new int[last-first+1];

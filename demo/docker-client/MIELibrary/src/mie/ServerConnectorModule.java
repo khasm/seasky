@@ -31,6 +31,11 @@ public class ServerConnectorModule implements ServerConnector {
 	}
 
 	@Override
+	public String getServerIp() {
+		return server_host;
+	}
+
+	@Override
 	public boolean sendUnstructredDoc(String name, byte[] img_cipher_text, byte[] txt_cipher_text) {
 		///process image cipher text
 		ByteBuffer buffer = ByteBuffer.wrap(img_cipher_text);

@@ -61,6 +61,11 @@ public class MIEClient implements MIE {
 	public MIEClient(String host, boolean useCache) throws NoSuchAlgorithmException, NoSuchPaddingException, IOException{
 		this(host, DEFAULT_SERVER_PORT, useCache);
 	}
+
+	@Override
+	public String getServerIp() {
+		return server.getServerIp();
+	}
 	
 	@Override
 	public int getCacheLimit() {
