@@ -1,0 +1,10 @@
+//example script only, it will create 40 datasets which will take a *long* time to run
+threads=1,2-6,7 step 2
+ip=127.0.0.1
+path=Datasets
+mode=descriptive
+cache=true,false
+ops=base 1000u; operations 500; add 50; search 20; get 30
+ops=base 1000u; operations 500; add 40; search 30; get 30
+ops=base 1000u; operations 500; add 30; search 40; get 30
+ops=base 1000u; operations 500; add 20; search 50; get 30

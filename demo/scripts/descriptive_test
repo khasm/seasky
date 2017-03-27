@@ -1,6 +1,5 @@
 ip=localhost
 threads=10
-logdir=logs
 path=datasets
 mode=descriptive
 ops=base 1000u; operations 500; add 20; search 50; get 30

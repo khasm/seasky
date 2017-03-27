@@ -21,30 +21,14 @@ import mie.crypto.TimeSpec;
 
 public class TestSet {
 
-	//options
-	private static final String IP_OPTION = "ip";
-	private static final String THREADS_OPTION = "threads";
-	private static final String LOD_DIR_OPTION = "logdir";
-	private static final String DATASET_OPTION = "path";
-	private static final String MODE_OPTION = "mode";
-	private static final String CACHE_OPTION = "cache";
-	private static final String OP_SEQUENCE = "ops";
-	//option values
-	private static final String EXPLICIT_MODE = "explicit";
-	private static final String DESCRIPTIVE_MODE = "descriptive";
-	private static final String UNDEFINED_MODE = "";
-	private static final String USE_CACHE_TRUE = "true";
-	private static final String USE_CACHE_FALSE = "false";
 	//error strings
-	private static final String PARSING_ERROR_FORMAT = "Parsing error for %s on line %d: %s";
 	private static final String ARG_ERROR = "Too %s arguments for %s";
 	private static final String FEW_ERROR = "few";
 	private static final String MANY_ERROR = "many";
-	private static final String INVALID_COMMAND = "%s is not a recognized command";
-	private static final String UNDEFINED_MODE_ERROR = "Script mode is undefined";
 	private static final String UNRECOGNIZED_MODE = "The %s mode is not recognized";
 	private static final String INVALID_DOCUMENT_TYPE = "The document type is not valid: %s";
 	private static final String INVALID_ARGUMENT = "Invalid argument found in %s";
+	private static final String INVALID_COMMAND = "%s is not a recognized command";
 	//valid commands
 	public static final String ADD = "add";
 	public static final String ADD_MIME = "addmime";
@@ -68,26 +52,14 @@ public class TestSet {
 	protected static final String CACHE_CLIENT_100_USER = "client100";
 	protected static final String CACHE_SERVER_100_USER = "server100";
 	protected static final String CACHE_DOUBLE_USER = "double";
-	private static final boolean NO_CACHE = false;
-	private static final boolean USE_CACHE = true;
 	protected static final int CACHE_DISABLED = 0;
 	protected static final int CACHE_80 = 1;
 	protected static final int CACHE_CLIENT_100 = 2;
 	protected static final int CACHE_SERVER_100 = 3;
 	protected static final int CACHE_DOUBLE = 4;
 	//script keywords
-	private static final String SINGLE_LINE_COMMENT = "//";
-	private static final String MULTI_LINE_COMMENT_BEGIN = "/*";
-	private static final String MULTI_LINE_COMMENT_END = "*/";
-	private static final String KEY_VALUE_SEPARATOR = "=";
 	private static final String OPS_SEQUENCE_SPLIT_REGEX = "[,;]";
 	private static final String COMMAND_ARGS_SEPARATOR = " ";
-	//default option values
-	private static final String DEFAULT_IP = "locahost";
-	private static final String DEFAULT_DATASET_DIR = "/datasets";
-	private static final String DEFAULT_LOG_DIR = "/logs";
-	private static final int DEFAULT_THREADS = 1;
-	private static final boolean DEFAULT_CACHE = NO_CACHE;
 	//queue automatic generation
 	private static final int PREFIX_DIVISION = 1000;
 	private static final char TYPE_UNDEFINED = '«';
@@ -101,9 +73,8 @@ public class TestSet {
 
 	private String ip;
 	private String mode;
-	private File script;
+	private String opsSequence;
 	private File datasetDir;
-	private File logDir;
 	private Queue<Command> operations;
 	private int nThreads;
 	private int nOperations;
@@ -112,19 +83,20 @@ public class TestSet {
 	private long bytesDownload;
 	private boolean indexWait;
 	private boolean cache;
+	private boolean compare;
 	private SearchStats searchStats;
 	private Monitor monitor;
 
-	public TestSet(File script) {
-		ip = DEFAULT_IP;
-		mode = UNDEFINED_MODE;
-		this.script = script;
-		datasetDir = new File(DEFAULT_DATASET_DIR);
-		logDir = new File(DEFAULT_LOG_DIR);
+	public TestSet(String ip, String mode, File datasetDir, String ops, int threads, boolean cache) {
+		this.ip = ip;
+		this.mode = mode;
+		opsSequence = ops;
+		this.datasetDir = datasetDir;
 		operations = new LinkedList<Command>();
-		nThreads = DEFAULT_THREADS;
+		nThreads = threads;
 		nOperations = 0;
-		cache = DEFAULT_CACHE;
+		this.cache = cache;
+		compare = false;
 		bytesUpload = 0;
 		bytesSearch = 0;
 		bytesDownload = 0;
@@ -134,28 +106,28 @@ public class TestSet {
 	}
 
 	public void start() throws IOException, ScriptErrorException {
-		parseScript();
-		//TODO:
-		System.out.printf("ip: %s\nthreads: %d\nlogs: %s\ndataset: %s\nmode: %s\n",
-			ip, nThreads, logDir.toString(), datasetDir.toString(), mode);
-		for(Command c: operations){
-			System.out.printf("%s", c.getOp());
-			for(String arg: c.getArgs())
-				System.out.printf(" %s", arg);
-			System.out.println();
-		}
-		if(mode.equalsIgnoreCase(UNDEFINED_MODE)){
-			throw new ScriptErrorException(UNDEFINED_MODE_ERROR);
-		}
-		if(mode.equalsIgnoreCase(EXPLICIT_MODE)){
+		parseCommands();
+		if(mode.equalsIgnoreCase(TestSetGenerator.EXPLICIT_MODE)){
 			runExplicit();
 		}
-		else if(mode.equalsIgnoreCase(DESCRIPTIVE_MODE)){
+		else if(mode.equalsIgnoreCase(TestSetGenerator.DESCRIPTIVE_MODE)){
 			runDescriptive();
 		}
 		else{
 			throw new ScriptErrorException(String.format(UNRECOGNIZED_MODE, mode));
 		}
+	}
+
+	public String dump() {
+		String dump = String.format("Ip: %s\nThreads: %d\nDatasetDir: %s\nMode: %s\nCache: %s\nOps: ",
+			ip, nThreads, datasetDir.toString(), mode, cache);
+		for(Command c: operations){
+			dump += c.getOp()+" ";
+			for(String a: c.getArgs()){
+				dump += a+" ";
+			}
+		}
+		return dump;
 	}
 
 	@Override
@@ -196,7 +168,7 @@ public class TestSet {
 				"featureTime: %f indexTime: %f cryptoTime: %f cloudTime: %f %s\nThroughput:\n"+
 				"Total Bytes uploaded: %d Total Bytes searched: %d Total Bytes downloaded: %d\n"+
 				"Bytes uploaded/s: %.6f Bytes searched/s: %.6f Bytes downloaded/s: %.6f\n"+
-				"Total operations: %d Operations/s: %.6f\n",
+				"Total operations: %d Operations/s: %.6f",
 				featureExtractionTime/1000000000f, indexTime/1000000000f, encryptionTime/1000000000f,
 				networkTime, monitor.toString(), bytesUpload, bytesSearch, bytesDownload,
 				bytesUpload/totalTime, bytesSearch/totalTime, bytesDownload/totalTime,
@@ -204,80 +176,7 @@ public class TestSet {
 		return serverSide.toString() + encryption + clientSide;
 	}
 
-	private void parseScript() throws IOException, ScriptErrorException {
-		BufferedReader reader = new BufferedReader(new FileReader(script));
-		String line;
-		int comment = 0;
-		int lineNumber = 0;
-		String opsSequence = "";
-		while(null != (line = reader.readLine())){
-			lineNumber++;
-			if(line.endsWith(MULTI_LINE_COMMENT_END) && 0 < comment){
-				comment--;
-				continue;
-			}
-			else if(0 < comment){
-				continue;
-			}
-			else if(line.startsWith(SINGLE_LINE_COMMENT) || 0 < comment){
-				continue;
-			}
-			else if(line.startsWith(MULTI_LINE_COMMENT_BEGIN)){
-				comment++;
-				continue;
-			}
-			else if(line.endsWith(MULTI_LINE_COMMENT_END) && 0 == comment){
-				throw new ScriptErrorException(String.format(
-					PARSING_ERROR_FORMAT, script.getName(), lineNumber, line));
-			}
-			int index = line.indexOf(KEY_VALUE_SEPARATOR);
-			String option;
-			String newLine;
-			if(-1 == index){
-				throw new ScriptErrorException(
-					String.format(PARSING_ERROR_FORMAT, script.getName(), lineNumber, line));
-			}
-			else{
-				option = line.substring(index+1);
-				newLine = line.substring(0, index).toLowerCase();
-			}
-			if(newLine.equals(IP_OPTION)){
-				ip = option;
-			}
-			else if(newLine.equals(THREADS_OPTION)){
-				try{
-					nThreads = Integer.parseInt(option);
-				}
-				catch(NumberFormatException e){
-					throw new ScriptErrorException(
-						String.format(PARSING_ERROR_FORMAT, script.getName(), lineNumber, line));		
-				}
-			}
-			else if(newLine.equals(LOD_DIR_OPTION)){
-				logDir = new File(option);
-			}
-			else if(newLine.equals(DATASET_OPTION)){
-				datasetDir = new File(option);
-			}
-			else if(newLine.equals(MODE_OPTION)){
-				mode = option;
-			}
-			else if(newLine.equals(CACHE_OPTION)){
-				if(option.equalsIgnoreCase(USE_CACHE_TRUE)){
-					cache = USE_CACHE;
-				}
-				else if(option.equalsIgnoreCase(USE_CACHE_FALSE)){
-					cache = NO_CACHE;
-				}
-			}
-			else if(newLine.equals(OP_SEQUENCE)){
-				opsSequence = option;
-			}
-		}
-		parseCommands(opsSequence);
-	}
-
-	private void parseCommands(String opsSequence) throws ScriptErrorException {
+	private void parseCommands() throws ScriptErrorException {
 		String[] rawOps = opsSequence.split(OPS_SEQUENCE_SPLIT_REGEX);
 		for(String s: rawOps){
 			s = s.trim();
@@ -296,6 +195,9 @@ public class TestSet {
 					args[0].equalsIgnoreCase(CLEAR)||args[0].equalsIgnoreCase(SYNC)){
 					operations.add(new Command(args[0]));
 				}
+				else if(args[0].equalsIgnoreCase(TestSetGenerator.COMPARE)){
+					compare = true;
+				}
 				else{
 					throw new ScriptErrorException(String.format(INVALID_COMMAND, s));
 				}
@@ -305,7 +207,7 @@ public class TestSet {
 				   args[0].equalsIgnoreCase(GET)||args[0].equalsIgnoreCase(GET_MIME)||
 				   args[0].equalsIgnoreCase(SEARCH)||args[0].equalsIgnoreCase(SEARCH_MIME)||
 				   args[0].equalsIgnoreCase(BASE)){
-					if(3 < args.length){
+					if(4 < args.length){
 						throw new ScriptErrorException(String.format(ARG_ERROR, MANY_ERROR, s));
 					}
 					String[] cArgs = new String[args.length-1];
@@ -346,6 +248,8 @@ public class TestSet {
 	}
 
 	private void runExplicit() throws IOException {
+		if(compare)
+			runCompare();
 		monitor = new Monitor(nThreads);
 		ClientThread[] threads = new ClientThread[nThreads];
 		for(int i = 0; i < nThreads; i++){
@@ -380,6 +284,23 @@ public class TestSet {
 			System.out.println(searchStats.toString());
 	}
 
+	private void runCompare() {
+		Monitor m = new Monitor(1);
+		Queue<Command> q = new LinkedList<Command>();
+		q.add(new Command(TestSetGenerator.COMPARE));
+		ClientThread t = new ClientThread(q, 0, m, null, datasetDir, 0);
+		t.start();
+		m.start();
+		try{
+			t.join();
+			m.end();
+		}
+		catch(InterruptedException e){
+			e.printStackTrace();
+		}
+	}
+
+	@SuppressWarnings("fallthrough")
 	private void runDescriptive() throws ScriptErrorException, IOException {
 		Command base = null;
 		Map<String, Double> ratios = new HashMap<String, Double>();
@@ -477,11 +398,15 @@ public class TestSet {
 				opDistributionAbs[GET_INDEX]);
 			int idsM[] = CACHE_DISABLED == cacheMode ? null : getIds(0, nDocs,
 				opDistributionAbs[GET_MIME_INDEX]);
-			for(int iu: idsU){
-				toAdd.add(iu);
+			if(null != idsU){
+				for(int iu: idsU){
+					toAdd.add(iu);
+				}
 			}
-			for(int im: idsM){
-				toAdd.add(im);
+			if(null != idsM){
+				for(int im: idsM){
+					toAdd.add(im);
+				}
 			}
 			int indexU = 0;
 			int indexM = 0;
@@ -674,6 +599,7 @@ public class TestSet {
 			ClientThread thread = new ClientThread(baseSetup, 0, m, client, datasetDir, 0);
 			thread.start();
 			m.start();
+			System.out.println("Setting up base");
 			return new Pair<ClientThread,Integer>(thread, nDocs);
 		}
 		catch(NoSuchAlgorithmException | NoSuchPaddingException e){

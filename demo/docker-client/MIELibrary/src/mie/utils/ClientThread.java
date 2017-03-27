@@ -12,6 +12,16 @@ import java.io.FileInputStream;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 
+import javax.crypto.KeyGenerator;
+import javax.crypto.SecretKey;
+import javax.crypto.Mac;
+import javax.crypto.Cipher;
+import javax.crypto.IllegalBlockSizeException;
+import javax.crypto.NoSuchPaddingException;
+import javax.crypto.BadPaddingException;
+import java.security.InvalidKeyException;
+import java.security.NoSuchAlgorithmException;
+
 import javax.mail.MessagingException;
 
 import mie.SearchResult;
@@ -22,9 +32,12 @@ import mie.Cache;
 
 public class ClientThread extends Thread {
 
-	private static final String UNSTRUCTURED_IMG_NAME_FORMAT = "/imgs/im%s.jpg";
-	private static final String UNSTRUCTURED_TXT_NAME_FORMAT = "/tags/tags%s.txt";
-	private static final String MIME_DOC_NAME_FORMAT = "/mime/%s.mime";
+	private static final String UNSTRUCTURED_IMG_DIR = "/imgs";
+	private static final String UNSTRUCTURED_TXT_DIR = "/tags";
+	private static final String MIME_DIR = "/mime";
+	private static final String UNSTRUCTURED_IMG_NAME_FORMAT = UNSTRUCTURED_IMG_DIR+"/im%s.jpg";
+	private static final String UNSTRUCTURED_TXT_NAME_FORMAT = UNSTRUCTURED_TXT_DIR+"/tags%s.txt";
+	private static final String MIME_DOC_NAME_FORMAT = MIME_DIR+"/%s.mime";
 
 	private MIE mie;
 	private Monitor monitor;
@@ -65,7 +78,7 @@ public class ClientThread extends Thread {
 				if(op.startsWith(TestSet.ADD) || op.startsWith(TestSet.SEARCH)||
 					op.startsWith(TestSet.GET)){
 					int first = Integer.parseInt(command.getArgs()[0]);
-					int last = command.getArgs().length == 2 ?
+					int last = 2 <= command.getArgs().length ?
 						Integer.parseInt(command.getArgs()[1]) : first;
 					if(first != last){
 						int nThreads = monitor.getNThreads();
@@ -162,8 +175,12 @@ public class ClientThread extends Thread {
 						e.printStackTrace();
 					}
 				}
+				else if(op.equalsIgnoreCase(TestSetGenerator.COMPARE)){
+					compareCBIR();
+				}
 			}
-			catch(IOException | MessagingException e){
+			catch(IOException | MessagingException | NoSuchAlgorithmException | InvalidKeyException
+				| IllegalBlockSizeException | NoSuchPaddingException | BadPaddingException e){
 				e.printStackTrace();
 			}
 		}
@@ -360,5 +377,91 @@ public class ClientThread extends Thread {
 		for(SearchResult result: res){
 			System.out.printf("id: %s score: %.6f\n", result.getId(), result.getScore());
 		}
+	}
+
+	private void compareCBIR() throws NoSuchAlgorithmException, IOException, InvalidKeyException,
+		IllegalBlockSizeException, NoSuchPaddingException, BadPaddingException {
+		KeyGenerator cbirKeyGen = KeyGenerator.getInstance("CBIRD");
+		SecretKey cbirKey = cbirKeyGen.generateKey();
+		Mac cbir = Mac.getInstance("CBIRD");
+		KeyGenerator aesKeyGen = KeyGenerator.getInstance("AES");
+		SecretKey aesKey = aesKeyGen.generateKey();
+		Cipher aes = Cipher.getInstance("AES/CTR/PKCS7Padding");
+		long cbird = 0;
+		long aesi = 0;
+		long cbirdSize = 0;
+		long aesiSize = 0;
+		long plaini = 0;
+		long plaint = 0;
+		int max = new File(datasetDir, UNSTRUCTURED_IMG_DIR).list().length;
+		for(int i = 0; i < max; i++){
+			byte[] img = readImg(i);
+			plaini += img.length;
+			long start = System.nanoTime();
+			cbir.init(cbirKey);
+			cbir.update(img);
+			byte[] tmp = cbir.doFinal();
+			cbird += System.nanoTime() - start;
+			cbirdSize += tmp.length;
+			start = System.nanoTime();
+			aes.init(Cipher.ENCRYPT_MODE, aesKey);
+			tmp = aes.doFinal(img);
+			aesi += System.nanoTime() - start;
+			aesiSize += tmp.length;
+		}
+		long cryptoCbirD = TimeSpec.getEncryptionTime();
+		long featureCbirD = TimeSpec.getFeatureTime();
+		long indexCbirD = TimeSpec.getIndexTime();
+		TimeSpec.reset();
+		cbirKeyGen = KeyGenerator.getInstance("CBIRDWithSymmetricCipher");
+		cbirKey = cbirKeyGen.generateKey();
+		Cipher cbirS = Cipher.getInstance("CBIRDWithSymmetricCipher");
+		long cbirdS = 0;
+		for(int i = 0; i < max; i++){
+			byte[] img = readImg(i);
+			long start = System.nanoTime();
+			cbirS.init(Cipher.ENCRYPT_MODE, cbirKey);
+			byte[] tmp = cbirS.doFinal(img);
+			cbirdS += System.nanoTime() - start;
+		}
+		TimeSpec.reset();
+		cbirKeyGen = KeyGenerator.getInstance("CBIRS");
+		cbirKey = cbirKeyGen.generateKey();
+		cbir = Mac.getInstance("CBIRS");
+		long cbirs = 0;
+		long aest = 0;
+		long cbirsSize = 0;
+		long aestSize = 0;
+		max = new File(datasetDir, UNSTRUCTURED_TXT_DIR).list().length;
+		for(int i = 0; i < max; i++){
+			byte[] txt = readTxt(i);
+			plaint += txt.length;
+			long start = System.nanoTime();
+			cbir.init(cbirKey);
+			cbir.update(txt);
+			byte[] tmp = cbir.doFinal();
+			cbirs += System.nanoTime() - start;
+			cbirsSize += tmp.length;
+			start = System.nanoTime();
+			aes.init(Cipher.ENCRYPT_MODE, aesKey);
+			tmp = aes.doFinal(txt);
+			aest += System.nanoTime() - start;
+			aestSize += tmp.length;
+		}
+		long cryptoCbirS = TimeSpec.getEncryptionTime();
+		long featureCbirS = TimeSpec.getFeatureTime();
+		long indexCbirS = TimeSpec.getIndexTime();
+		System.out.printf("Plain size images: %d Plain size text: %d\n"+
+			"CBIR Dense: %.6f %d bytes AES: %.6f %d bytes\n"+
+			"crypto: %.6f features: %.6f index: %.6f\n"+
+			"CBIR Sparse: %.6f %d bytes AES: %.6f %d bytes\n"+
+			"crypto: %.6f features: %.6f index: %.6f\n"+
+			"CBIR Dense cipher: %.6f\n",
+			plaini, plaint,
+			cbird/1000000000f, cbirdSize, aesi/1000000000f, aesiSize, 
+			cryptoCbirD/1000000000f, featureCbirD/1000000000f, indexCbirD/1000000000f,
+			cbirs/1000000000f, cbirsSize, aest/1000000000f, aestSize,
+			cryptoCbirS/1000000000f, featureCbirS/1000000000f, indexCbirS/1000000000f,
+			cbirdS/1000000000f);
 	}
 }
