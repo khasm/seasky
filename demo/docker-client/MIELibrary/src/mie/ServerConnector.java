@@ -24,4 +24,8 @@ public interface ServerConnector {
 	public boolean resetCache();
 
 	public String getServerIp();
+
+	public boolean wipe();
+
+	public boolean setServerCache(boolean useCache);
 }

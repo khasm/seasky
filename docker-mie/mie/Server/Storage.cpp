@@ -21,7 +21,7 @@ using RC::RamCloudStorage;
 using DEPSKY::DepskyStorage;
 
 Storage::Storage(int backend, bool cache, int model, const vector<string>& ips, int cid):
-    aUseCache(cache)
+    aUseCache(cache), aClientCacheHint(true)
 {
 
     #ifdef MIE_DEBUG
@@ -264,7 +264,7 @@ bool Storage::removeFile(const string& filename, shared_ptr<File>& file)
     }
     else{
         blobs_lock.unlock();
-        if(aUseCache){
+        if(aUseCache && aClientCacheHint){
             aCache->remove(filename);
         }
         status = aBackend->remove(filename);
@@ -512,7 +512,7 @@ bool Storage::commitSmallFile(const string& filename, std::shared_ptr<File>& fil
 
     if(!file->aOldMetadata.empty())
         updateBlobsRemove(filename);
-    else if(aUseCache)
+    else if(aUseCache && aClientCacheHint)
         aCache->remove(filename);
     if(NULL == buffer)
         status = aBackend->write(filename, file->aWriteBuffer.data(), file->aWriteChunkSize);
@@ -548,7 +548,7 @@ bool Storage::commitBigFile(const string& filename, std::shared_ptr<File>& file)
         printf("STORAGE::commitBigFile: Removing old file: %s\n", filename.c_str());
         #endif
         aBackend->remove(filename);
-        if(aUseCache)
+        if(aUseCache && aClientCacheHint)
             aCache->remove(filename);
     }
     status = updateBlobsAdd(filename, file->aNewMetadata);
@@ -748,7 +748,7 @@ int Storage::singleRead(const string& filename, vector<char>& buffer, shared_ptr
 {
     int value_size = NOT_FOUND;
     if(file->aInitialSeqIndex == 0){
-        if(aUseCache && useCache)
+        if(aUseCache && useCache && aClientCacheHint)
             value_size = aCache->read(filename, buffer);
         if(0 > value_size){
             ///not found, read from backend and update cache
@@ -759,7 +759,7 @@ int Storage::singleRead(const string& filename, vector<char>& buffer, shared_ptr
                 <<filename;
             log(ss.str());
             #endif
-            if(0 <= value_size && aUseCache)
+            if(0 <= value_size && aUseCache && aClientCacheHint)
                 aCache->write(filename, buffer.data(), value_size);
         }
     }
@@ -773,12 +773,12 @@ int Storage::singleRead(const string& filename, vector<char>& buffer, shared_ptr
             offset = getNextSeq(file->aOldMetadata, seq, offset);
             string chunk_name = filename+seq;
             vector<char> b;
-            if(aUseCache && useCache)
+            if(aUseCache && useCache && aClientCacheHint)
                 value_size = aCache->read(chunk_name, b);
             if(0 > value_size){
                 ///not found, read from backend and update cache
                 value_size = aBackend->read(chunk_name, b);
-                if(0 <= value_size && aUseCache)
+                if(0 <= value_size && aUseCache && aClientCacheHint)
                     aCache->write(filename, b.data(), value_size);
             }
             if(0 <= value_size){
@@ -831,12 +831,12 @@ int Storage::partialRead(const string& filename, vector<char>& buffer, shared_pt
                 string chunk_name = filename + seq;
                 nextSeqIndex = getNextSeq(file->aOldMetadata, seq, nextSeqIndex);
                 vector<char> buf;
-                if(aUseCache && useCache)
+                if(aUseCache && useCache && aClientCacheHint)
                     status = aCache->read(chunk_name, buf);
                 if(0 > status){
                     ///not found, read from backend and update cache
                     status = aBackend->read(chunk_name, buf);
-                    if(0 <= status && aUseCache)
+                    if(0 <= status && aUseCache && aClientCacheHint)
                         aCache->write(filename, buf.data(), status);
                 }
                 if(0 <= status){
@@ -888,12 +888,12 @@ int Storage::partialRead(const string& filename, vector<char>& buffer, shared_pt
                 string seq;
                 nextSeqIndex = getNextSeq(file->aOldMetadata, seq, nextSeqIndex);
                 string chunk_name = filename + seq;
-                if(aUseCache && useCache)
+                if(aUseCache && useCache && aClientCacheHint)
                     status = aCache->read(chunk_name, *b.aBuffer);
                 if(0 > status){
                     ///not found, read from backend and update cache
                     status = aBackend->read(chunk_name, *b.aBuffer);
-                    if(0 <= status && aUseCache)
+                    if(0 <= status && aUseCache && aClientCacheHint)
                         aCache->write(filename, b.aBuffer->data(), status);
                 }
                 if(0 <= status){
@@ -1131,6 +1131,14 @@ double Storage::getParallelNetDown()
     return aBackend->getParallelNetDown();
 }
 
+double Storage::getHitRatio()
+{
+    if(aUseCache)
+        return aCache->getHitRatio();
+    else
+        return 0;
+}
+
 void Storage::resetTimes()
 {
     aBackend->resetTimes();
@@ -1144,12 +1152,9 @@ void Storage::resetCache()
         aCache->clear();
 }
 
-double Storage::getHitRatio()
+void Storage::setCache(bool useCache)
 {
-    if(aUseCache)
-        return aCache->getHitRatio();
-    else
-        return 0;
+    aClientCacheHint = useCache;
 }
 
 }//end namespace mie

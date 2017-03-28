@@ -71,6 +71,11 @@ public class MIEClient implements MIE {
 	public int getCacheLimit() {
 		return cache.getCacheLimit();
 	}
+
+	@Override
+	public boolean wipe() {
+		return server.wipe();
+	}
 	
 	@Override
 	public void setCacheLimit(int newLimit) {
@@ -345,6 +350,11 @@ public class MIEClient implements MIE {
 	@Override
 	public long getNetworkTime() {
 		return networkTime;
+	}
+
+	@Override
+	public boolean setServerCache(boolean useCache) {
+		return server.setServerCache(useCache);
 	}
 	
 	/**

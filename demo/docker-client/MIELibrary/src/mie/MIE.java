@@ -124,5 +124,9 @@ public interface MIE {
 	public long getNetworkTime();
 
 	public String getServerIp();
+
+	public boolean wipe();
+
+	public boolean setServerCache(boolean useCache);
 	
 }

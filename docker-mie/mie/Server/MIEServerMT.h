@@ -54,6 +54,7 @@ class MIEServerMT : public Server {
     static std::atomic<unsigned> aRequests;
     static std::mutex aTerminateLock;
     static std::condition_variable aNoRequests;
+    static bool queuedWipe;
     
     void startServer();
     static void clientThread(int newsockfd);
@@ -67,6 +68,9 @@ class MIEServerMT : public Server {
     static void printTimes(int newsockfd);
     static void clear(int newsockfd);
     static void resetCache(int newsockfd);
+    static void wipe(int newsockfd);
+    static void setCache(int newsockfd);
+    static void clearTimes();
     
 public:
     MIEServerMT(int backend, bool cache = true, int model = 0, const std::vector<std::string>&

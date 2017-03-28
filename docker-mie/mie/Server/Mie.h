@@ -82,9 +82,9 @@ class MIE{
     //management
     unsigned aInProgressSearches;
     bool aIndexing;
-    std::mutex aIndexLock;//this lock controls access to all indexes
-    std::condition_variable aSearchesDone;
-    std::condition_variable aIndexDone;
+    std::recursive_mutex aIndexLock;//this lock controls access to all indexes
+    std::condition_variable_any aSearchesDone;
+    std::condition_variable_any aIndexDone;
     long long aMaxFeaturesSize;
     long long aCurrentFeaturesSize;
     std::mutex aCurrentFeaturesSizeLock;
@@ -129,6 +129,7 @@ public:
     double networkFeatureTime();
     double searchTime();
     void resetTimes();
+    void wipe(const std::string& suffix);
 };
 
 }//end namespace

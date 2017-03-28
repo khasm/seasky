@@ -43,6 +43,8 @@ public class TestSet {
 	public static final String WAIT = "wait";
 	public static final String BASE = "base";
 	public static final String OPERATIONS = "operations";
+	public static final String NO_WIPE = "nowipe";
+	public static final String WIPE = "wipe";
 	//command args
 	private static final String INDEX_WAIT_SHORT = "w";
 	private static final String INDEX_WAIT_LONG = "wait";
@@ -58,7 +60,7 @@ public class TestSet {
 	protected static final int CACHE_SERVER_100 = 3;
 	protected static final int CACHE_DOUBLE = 4;
 	//script keywords
-	private static final String OPS_SEQUENCE_SPLIT_REGEX = "[,;]";
+	protected static final String OPS_SEQUENCE_SPLIT_REGEX = "[,;]";
 	private static final String COMMAND_ARGS_SEPARATOR = " ";
 	//queue automatic generation
 	private static final int PREFIX_DIVISION = 1000;
@@ -71,57 +73,92 @@ public class TestSet {
 	private static final int SEARCH_MIME_INDEX = 4;
 	private static final int GET_MIME_INDEX = 5;
 
-	private String ip;
-	private String mode;
-	private String opsSequence;
-	private File datasetDir;
-	private Queue<Command> operations;
-	private int nThreads;
-	private int nOperations;
-	private long bytesUpload;
-	private long bytesSearch;
-	private long bytesDownload;
-	private boolean indexWait;
-	private boolean cache;
-	private boolean compare;
-	private SearchStats searchStats;
-	private Monitor monitor;
+	private String aIp;
+	private String aMode;
+	private String aOpsSequence;
+	private String aStats;
+	private String aCache;
+	private File aDatasetDir;
+	private Queue<Command> aOperations;
+	private int aNThreads;
+	private int aNOperations;
+	private long aBytesUpload;
+	private long aBytesSearch;
+	private long aBytesDownload;
+	private boolean aIndexWait;
+	private boolean aCompare;
+	private boolean aWipe;
+	private boolean aOutput;
+	private SearchStats aSearchStats;
+	private Monitor aMonitor;
 
-	public TestSet(String ip, String mode, File datasetDir, String ops, int threads, boolean cache) {
-		this.ip = ip;
-		this.mode = mode;
-		opsSequence = ops;
-		this.datasetDir = datasetDir;
-		operations = new LinkedList<Command>();
-		nThreads = threads;
-		nOperations = 0;
-		this.cache = cache;
-		compare = false;
-		bytesUpload = 0;
-		bytesSearch = 0;
-		bytesDownload = 0;
-		indexWait = false;
-		searchStats = new SearchStats();
-		monitor = new Monitor(nThreads);
+	public TestSet(String ip, String mode, File datasetDir, String ops, int threads, String cache,
+		boolean output) {
+		aIp = ip;
+		aMode = mode;
+		aOpsSequence = ops;
+		aStats = "";
+		aCache = cache;
+		aDatasetDir = datasetDir;
+		aOperations = new LinkedList<Command>();
+		aNThreads = threads;
+		aNOperations = 0;
+		aCompare = false;
+		aWipe = mode.equalsIgnoreCase(TestSetGenerator.DESCRIPTIVE_MODE) ? true : false;
+		aOutput = output;
+		aBytesUpload = 0;
+		aBytesSearch = 0;
+		aBytesDownload = 0;
+		aIndexWait = false;
+		aSearchStats = new SearchStats();
+		aMonitor = new Monitor(aNThreads);
 	}
 
 	public void start() throws IOException, ScriptErrorException {
-		parseCommands();
-		if(mode.equalsIgnoreCase(TestSetGenerator.EXPLICIT_MODE)){
-			runExplicit();
+		boolean clientCache = false;
+		boolean serverCache = false;
+		String[] limits = aCache.split(TestSetGenerator.LIMIT_SEPARATOR);
+		for(String limit: limits){
+			if(limit.equalsIgnoreCase(TestSetGenerator.CACHE_CLIENT)){
+				clientCache = true;
+			}
+			else if(limit.equalsIgnoreCase(TestSetGenerator.CACHE_SERVER)){
+				serverCache = true;
+			}
+			else if(!limit.equalsIgnoreCase(TestSetGenerator.NO_CACHE)){
+				throw new ScriptErrorException(String.format(INVALID_ARGUMENT,
+					TestSetGenerator.CACHE_OPTION));
+			}
 		}
-		else if(mode.equalsIgnoreCase(TestSetGenerator.DESCRIPTIVE_MODE)){
-			runDescriptive();
+		parseCommands();
+		MIE client = null;
+		try{
+			client = new MIEClient(aIp, false);
+			client.setServerCache(serverCache);
+		}
+		catch(NoSuchAlgorithmException | NoSuchPaddingException e){
+			e.printStackTrace();
+			return;
+		}
+		if(aMode.equalsIgnoreCase(TestSetGenerator.EXPLICIT_MODE)){
+			runExplicit(clientCache);
+		}
+		else if(aMode.equalsIgnoreCase(TestSetGenerator.DESCRIPTIVE_MODE)){
+			runDescriptive(clientCache);
 		}
 		else{
-			throw new ScriptErrorException(String.format(UNRECOGNIZED_MODE, mode));
+			throw new ScriptErrorException(String.format(UNRECOGNIZED_MODE, aMode));
 		}
+		if(aOutput)
+			stats(client);
+		if(aWipe)
+			client.wipe();
 	}
 
 	public String dump() {
 		String dump = String.format("Ip: %s\nThreads: %d\nDatasetDir: %s\nMode: %s\nCache: %s\nOps: ",
-			ip, nThreads, datasetDir.toString(), mode, cache);
-		for(Command c: operations){
+			aIp, aNThreads, aDatasetDir.toString(), aMode, aCache);
+		for(Command c: aOperations){
 			dump += c.getOp()+" ";
 			for(String a: c.getArgs()){
 				dump += a+" ";
@@ -132,35 +169,32 @@ public class TestSet {
 
 	@Override
 	public String toString() {
-		MIE client = null;
+		return aStats;
+	}
+
+	private void stats(MIE client) {
 		float networkTime = 0;
 		StringBuffer serverSide = new StringBuffer();
 		float indexWaitValue = 0;
-		try{
-			client = new MIEClient(ip, cache);
-			networkTime = client.getNetworkTime()/1000000000f;
-			Map<String,String> stats = client.printServerStatistics();
-			for(String key: stats.keySet()){
-				String value = stats.get(key);
-				serverSide.append(String.format("%s: %s\n", key, value));
-				if(key.equalsIgnoreCase("Train time")||key.equalsIgnoreCase("Network feature time")||
-					key.equalsIgnoreCase("Network index time")||key.equalsIgnoreCase("Index time")){
-					indexWaitValue += Float.parseFloat(value);
-				}
+		networkTime = client.getNetworkTime()/1000000000f;
+		Map<String,String> stats = client.printServerStatistics();
+		for(String key: stats.keySet()){
+			String value = stats.get(key);
+			serverSide.append(String.format("%s: %s\n", key, value));
+			if(key.equalsIgnoreCase("Train time")||key.equalsIgnoreCase("Network feature time")||
+				key.equalsIgnoreCase("Network index time")||key.equalsIgnoreCase("Index time")){
+				indexWaitValue += Float.parseFloat(value);
 			}
-			if(indexWait)
-				networkTime -= indexWaitValue;
 		}
-		catch(NoSuchAlgorithmException | NoSuchPaddingException | IOException e){
-			e.printStackTrace();
-		}
+		if(aIndexWait)
+			networkTime -= indexWaitValue;
 		long indexTime = TimeSpec.getIndexTime();
 		long featureExtractionTime = TimeSpec.getFeatureTime();
 		long encryptionTime = TimeSpec.getEncryptionTime();
 		long encryptionSymmetricTime = TimeSpec.getEncryptionSymmetricTime();
 		long encryptionCbirTime = TimeSpec.getEncryptionCbirTime();
 		long encryptionMiscTime = TimeSpec.getEncryptionMiscTime();
-		float totalTime = monitor.getTotalTime();
+		float totalTime = aMonitor.getTotalTime();
 		String encryption = String.format("CBIR encryption: %f\nSymmetric encryption: %f\nMisc: %f\n",
 			encryptionCbirTime/1000000000f, encryptionSymmetricTime/1000000000f,
 			encryptionMiscTime/1000000000f);
@@ -170,14 +204,14 @@ public class TestSet {
 				"Bytes uploaded/s: %.6f Bytes searched/s: %.6f Bytes downloaded/s: %.6f\n"+
 				"Total operations: %d Operations/s: %.6f",
 				featureExtractionTime/1000000000f, indexTime/1000000000f, encryptionTime/1000000000f,
-				networkTime, monitor.toString(), bytesUpload, bytesSearch, bytesDownload,
-				bytesUpload/totalTime, bytesSearch/totalTime, bytesDownload/totalTime,
-				nOperations, nOperations/totalTime);
-		return serverSide.toString() + encryption + clientSide;
+				networkTime, aMonitor.toString(), aBytesUpload, aBytesSearch, aBytesDownload,
+				aBytesUpload/totalTime, aBytesSearch/totalTime, aBytesDownload/totalTime,
+				aNOperations, aNOperations/totalTime);
+		aStats = serverSide.toString() + encryption + clientSide;
 	}
 
 	private void parseCommands() throws ScriptErrorException {
-		String[] rawOps = opsSequence.split(OPS_SEQUENCE_SPLIT_REGEX);
+		String[] rawOps = aOpsSequence.split(OPS_SEQUENCE_SPLIT_REGEX);
 		for(String s: rawOps){
 			s = s.trim();
 			if(s.isEmpty())
@@ -193,10 +227,16 @@ public class TestSet {
 				}
 				else if(args[0].equalsIgnoreCase(INDEX)||args[0].equalsIgnoreCase(RESET)||
 					args[0].equalsIgnoreCase(CLEAR)||args[0].equalsIgnoreCase(SYNC)){
-					operations.add(new Command(args[0]));
+					aOperations.add(new Command(args[0]));
 				}
 				else if(args[0].equalsIgnoreCase(TestSetGenerator.COMPARE)){
-					compare = true;
+					aCompare = true;
+				}
+				else if(args[0].equalsIgnoreCase(NO_WIPE)){
+					aWipe = false;
+				}
+				else if(args[0].equalsIgnoreCase(WIPE)){
+					aWipe = true;
 				}
 				else{
 					throw new ScriptErrorException(String.format(INVALID_COMMAND, s));
@@ -213,14 +253,14 @@ public class TestSet {
 					String[] cArgs = new String[args.length-1];
 					for(int i = 1; i < args.length; i++)
 						cArgs[i-1] = args[i];
-					operations.add(new Command(args[0], cArgs));
+					aOperations.add(new Command(args[0], cArgs));
 				}
 				else if(args[0].equalsIgnoreCase(OPERATIONS)||args[0].equalsIgnoreCase(WAIT)){
 					if(2 < args.length){
 						throw new ScriptErrorException(String.format(ARG_ERROR, MANY_ERROR, s));
 					}
 					else{
-						operations.add(new Command(args[0], new String[]{args[1]}));
+						aOperations.add(new Command(args[0], new String[]{args[1]}));
 					}
 				}
 				else if(args[0].equalsIgnoreCase(INDEX)){
@@ -229,8 +269,8 @@ public class TestSet {
 					}
 					if(args[1].equalsIgnoreCase(INDEX_WAIT_SHORT)||
 						args[1].equalsIgnoreCase(INDEX_WAIT_LONG)){
-						operations.add(new Command(args[0], new String[]{args[1]}));
-						indexWait = true;
+						aOperations.add(new Command(args[0], new String[]{args[1]}));
+						aIndexWait = true;
 					}
 					else{
 						throw new ScriptErrorException(String.format(INVALID_ARGUMENT, s));
@@ -247,48 +287,48 @@ public class TestSet {
 		}
 	}
 
-	private void runExplicit() throws IOException {
-		if(compare)
+	private void runExplicit(boolean cache) throws IOException {
+		if(aCompare)
 			runCompare();
-		monitor = new Monitor(nThreads);
-		ClientThread[] threads = new ClientThread[nThreads];
-		for(int i = 0; i < nThreads; i++){
+		aMonitor = new Monitor(aNThreads);
+		ClientThread[] threads = new ClientThread[aNThreads];
+		for(int i = 0; i < aNThreads; i++){
 			try{
-				MIE client = new MIEClient(ip, cache);
-				threads[i] = new ClientThread(operations, i, monitor, client, datasetDir, 0);
+				MIE client = new MIEClient(aIp, cache);
+				threads[i] = new ClientThread(aOperations, i, aMonitor, client, aDatasetDir, 0);
 				threads[i].start();
 			}
 			catch(NoSuchAlgorithmException | NoSuchPaddingException e){
 				e.printStackTrace();
 			}
 		}
-		monitor.start();
+		aMonitor.start();
 		try{
-			for(int i = 0; i < nThreads; i++){
+			for(int i = 0; i < aNThreads; i++){
 				System.out.printf("Waiting for thread %d\n", i);
 				threads[i].join();
-				bytesDownload += threads[i].getBytesDownload();
-				bytesUpload += threads[i].getBytesUpload();
-				bytesSearch += threads[i].getBytesSearch();
-				nOperations += threads[i].getNOperations();
+				aBytesDownload += threads[i].getBytesDownload();
+				aBytesUpload += threads[i].getBytesUpload();
+				aBytesSearch += threads[i].getBytesSearch();
+				aNOperations += threads[i].getNOperations();
 			}
 		}
 		catch(InterruptedException e){
 			e.printStackTrace();
 		}
-		monitor.end();
-		for(int i = 0; i < nThreads; i++){
-			searchStats.merge(threads[i].getSearchStats());
+		aMonitor.end();
+		for(int i = 0; i < aNThreads; i++){
+			aSearchStats.merge(threads[i].getSearchStats());
 		}
-		if(searchStats.hasData())
-			System.out.println(searchStats.toString());
+		if(aSearchStats.hasData())
+			System.out.println(aSearchStats.toString());
 	}
 
 	private void runCompare() {
 		Monitor m = new Monitor(1);
 		Queue<Command> q = new LinkedList<Command>();
 		q.add(new Command(TestSetGenerator.COMPARE));
-		ClientThread t = new ClientThread(q, 0, m, null, datasetDir, 0);
+		ClientThread t = new ClientThread(q, 0, m, null, aDatasetDir, 0);
 		t.start();
 		m.start();
 		try{
@@ -301,13 +341,13 @@ public class TestSet {
 	}
 
 	@SuppressWarnings("fallthrough")
-	private void runDescriptive() throws ScriptErrorException, IOException {
+	private void runDescriptive(boolean cache) throws ScriptErrorException, IOException {
 		Command base = null;
 		Map<String, Double> ratios = new HashMap<String, Double>();
 		double total = 0;
 		int nOp = 0;
 		int cacheMode = CACHE_DISABLED;
-		for(Command com: operations){
+		for(Command com: aOperations){
 			String op = com.getOp();
 			if(op.equalsIgnoreCase(BASE)){
 				if(null == base)
@@ -382,11 +422,11 @@ public class TestSet {
 			newNOp += opDistributionAbs[i];
 		}
 		//create threads with randomized operations
-		monitor = new Monitor(nThreads);
-		ClientThread[] threads = new ClientThread[nThreads];
+		aMonitor = new Monitor(aNThreads);
+		ClientThread[] threads = new ClientThread[aNThreads];
 		double[] opSplitProb = new double[N_OP_TYPES-1];
 		Set<Integer> toAdd = new HashSet<Integer>();
-		for(int i = 0; i < nThreads; i++){
+		for(int i = 0; i < aNThreads; i++){
 			Queue<Command> threadQueue = new LinkedList<Command>();
 			int[] nOpDist = opDistributionAbs.clone();
 			int tmpNOp = newNOp;
@@ -439,8 +479,8 @@ public class TestSet {
 				updateCumulativeFrequencies(opSplitProb, tmpRatios);
 			}
 			try{
-				MIE client = new MIEClient(ip, cache);
-				threads[i] = new ClientThread(threadQueue, i, monitor, client, datasetDir,
+				MIE client = new MIEClient(aIp, cache);
+				threads[i] = new ClientThread(threadQueue, i, aMonitor, client, aDatasetDir,
 					(i+1)*PREFIX_DIVISION);
 				threads[i].start();
 			}
@@ -456,7 +496,7 @@ public class TestSet {
 				case(CACHE_SERVER_100):
 				complete = true;
 				case(CACHE_DOUBLE):
-				setupServerCache(toAdd, complete, ip);
+				setupServerCache(toAdd, complete, aIp);
 			}
 		}
 		catch(InterruptedException e){
@@ -464,26 +504,26 @@ public class TestSet {
 			return;
 		}
 		System.out.println("Base worker finished");
-		monitor.start();
+		aMonitor.start();
 		try{
-			for(int i = 0; i < nThreads; i++){
+			for(int i = 0; i < aNThreads; i++){
 				System.out.printf("Waiting for thread %d\n", i);
 				threads[i].join();
-				bytesDownload += threads[i].getBytesDownload();
-				bytesUpload += threads[i].getBytesUpload();
-				bytesSearch += threads[i].getBytesSearch();
-				nOperations += threads[i].getNOperations();
+				aBytesDownload += threads[i].getBytesDownload();
+				aBytesUpload += threads[i].getBytesUpload();
+				aBytesSearch += threads[i].getBytesSearch();
+				aNOperations += threads[i].getNOperations();
 			}
 		}
 		catch(InterruptedException e){
 			e.printStackTrace();
 		}
-		monitor.end();
-		for(int i = 0; i < nThreads; i++){
-			searchStats.merge(threads[i].getSearchStats());
+		aMonitor.end();
+		for(int i = 0; i < aNThreads; i++){
+			aSearchStats.merge(threads[i].getSearchStats());
 		}
-		if(searchStats.hasData())
-			System.out.println(searchStats.toString());
+		if(aSearchStats.hasData())
+			System.out.println(aSearchStats.toString());
 	}
 
 	private Command generateCommand(int probIndex, int nDocs, int[] ids, int index)
@@ -594,9 +634,9 @@ public class TestSet {
 		baseSetup.add(new Command(op, new String[]{"0", ""+nDocs}));
 		baseSetup.add(new Command(INDEX, new String[]{INDEX_WAIT_SHORT}));
 		try{
-			MIE client = new MIEClient(ip, cache);
+			MIE client = new MIEClient(aIp, false);
 			Monitor m = new Monitor(1);
-			ClientThread thread = new ClientThread(baseSetup, 0, m, client, datasetDir, 0);
+			ClientThread thread = new ClientThread(baseSetup, 0, m, client, aDatasetDir, 0);
 			thread.start();
 			m.start();
 			System.out.println("Setting up base");
@@ -612,12 +652,12 @@ public class TestSet {
 		int maxDocs = 0;
 		switch(type){
 			case(TYPE_UNSTRUCTURED):
-			String[] imgs = new File(datasetDir, "imgs").list();
-			String[] txts = new File(datasetDir, "tags").list();
+			String[] imgs = new File(aDatasetDir, "imgs").list();
+			String[] txts = new File(aDatasetDir, "tags").list();
 			maxDocs = imgs.length > txts.length ? txts.length : imgs.length;
 			break;
 			case(TYPE_MIME):
-			maxDocs = new File(datasetDir, "mime").list().length;
+			maxDocs = new File(aDatasetDir, "mime").list().length;
 			break;
 			default:
 			throw new ScriptErrorException(String.format(INVALID_DOCUMENT_TYPE, ""+type));

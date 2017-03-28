@@ -11,6 +11,8 @@
 
 namespace MIE{
 
+static const char* FILE_SUFFIX = ".data";
+
 using namespace std;
 using namespace cv;
 
@@ -33,6 +35,7 @@ bool MIEServerMT::aShutdown;
 atomic<unsigned> MIEServerMT::aRequests;
 mutex MIEServerMT::aTerminateLock;
 condition_variable MIEServerMT::aNoRequests;
+bool MIEServerMT::queuedWipe;
 
 MIEServerMT::MIEServerMT(int backend, bool cache, int model, const vector<string>& ips)
 {
@@ -43,6 +46,7 @@ MIEServerMT::MIEServerMT(int backend, bool cache, int model, const vector<string
     aTerminate = false;
     aShutdown = false;
     aRequests = 0;
+    queuedWipe = false;
 }
 
 MIEServerMT::~MIEServerMT() {
@@ -117,13 +121,19 @@ void MIEServerMT::clientThread(int newsockfd) {
         case 'r':
             resetCache(newsockfd);
             break;
+        case 'w':
+            wipe(newsockfd);
+            break;
+        case 'm':
+            setCache(newsockfd);
+            break;
         default:
             warning("unkonwn command!\n");
     }
     end:
     unique_lock<mutex> tmp(aTerminateLock);
     aRequests--;
-    if(0 == aRequests && aTerminate)
+    if((0 == aRequests && aTerminate) || queuedWipe)
         aNoRequests.notify_all();
     //ack(newsockfd);
     close(newsockfd);
@@ -142,7 +152,7 @@ void MIEServerMT::addDoc(int newsockfd)
     }
     aUploaders++;
     aNetworkAddTimeLock.unlock();
-    storage->write(name+".data", data.get() + pos, cipher_size);
+    storage->write(name+FILE_SUFFIX, data.get() + pos, cipher_size);
     timespec end = getTime();
     aNetworkAddTimeLock.lock();
     double time_parallel = diffSec(aNetworkAddStart, end);
@@ -319,14 +329,7 @@ void MIEServerMT::clear(int newsockfd)
 {
     char status = NO_ERRORS;
     socketSend(newsockfd, &status, sizeof(char));
-    unique_lock<mutex> add_lock(aNetworkAddTimeLock);
-    aNetworkAddTotalTime = 0;
-    aNetworkAddParallelTime = 0;
-    add_lock.unlock();
-    unique_lock<mutex> get_lock(aNetworkGetTimeLock);
-    aNetworkGetTotalTime = 0;
-    aNetworkGetParallelTime = 0;
-    get_lock.unlock();
+    clearTimes();
     storage->resetTimes();
     mie->resetTimes();
 }
@@ -336,6 +339,51 @@ void MIEServerMT::resetCache(int newsockfd)
     char status = NO_ERRORS;
     socketSend(newsockfd, &status, sizeof(char));
     storage->resetCache();
+}
+
+/*
+This method will never execute while requests keep arriving.
+If two or more requests come to wipe the server in a row it might
+lead to the serve becoming unresponsive to all requests (DoS).
+Why even offer a remote method to erase all data on a server that
+aims to provide availability and integrity to the data stored in it
+anyway?
+*/
+void MIEServerMT::wipe(int newsockfd)
+{
+    queuedWipe = true;
+    unique_lock<mutex> tmp(aTerminateLock);
+    while(1 < aRequests){
+        aNoRequests.wait(tmp);
+    }
+    tmp.unlock();
+    clearTimes();
+    mie->wipe(string(FILE_SUFFIX));
+    char status = NO_ERRORS;
+    socketSend(newsockfd, &status, sizeof(char));
+}
+
+void MIEServerMT::setCache(int newsockfd)
+{
+    char buff[1];
+    socketReceive(newsockfd, buff, 1);
+    char status = NO_ERRORS;
+    socketSend(newsockfd, &status, sizeof(char));
+    bool use_cache = true;
+    if('\0' == buff[0])
+        use_cache = false;
+    storage->setCache(use_cache);
+}
+
+void MIEServerMT::clearTimes()
+{
+    unique_lock<mutex> add_lock(aNetworkAddTimeLock);
+    aNetworkAddTotalTime = 0;
+    aNetworkAddParallelTime = 0;
+    add_lock.unlock();
+    unique_lock<mutex> get_lock(aNetworkGetTimeLock);
+    aNetworkGetTotalTime = 0;
+    aNetworkGetParallelTime = 0;
 }
 
 }//end namespace

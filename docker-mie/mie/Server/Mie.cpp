@@ -1,5 +1,6 @@
 #include "Mie.h"
 #include "ServerUtil.h"
+#include <set>
 #include <iostream>
 
 #include <fstream>
@@ -252,7 +253,7 @@ void MIE::addDoc(const char* data, const string& name)
 
 set<QueryResult,cmp_QueryResult> MIE::search(const char* data, size_t& nResults)
 {
-    unique_lock<mutex> index_lock(aIndexLock);
+    unique_lock<recursive_mutex> index_lock(aIndexLock);
     while(aIndexing)
         aIndexDone.wait(index_lock);
     aInProgressSearches++;
@@ -521,7 +522,7 @@ void MIE::selfIndex(MIE* mie){
 
 void MIE::index(bool train)
 {
-    unique_lock<mutex> index_lock(aIndexLock);
+    unique_lock<recursive_mutex> index_lock(aIndexLock);
     if(aIndexing)
         return;
     else
@@ -971,7 +972,7 @@ double MIE::searchTime()
 
 void MIE::resetTimes()
 {
-    unique_lock<mutex> index_lock(aIndexLock);
+    unique_lock<recursive_mutex> index_lock(aIndexLock);
     while(aIndexing)
         aIndexDone.wait(index_lock);
     aIndexTime = 0;
@@ -981,6 +982,62 @@ void MIE::resetTimes()
     index_lock.unlock();
     unique_lock<mutex> search_lock(aSearchTimeLock);
     aSearchTime = 0;
+}
+
+void MIE::wipe(const string& suffix)
+{
+    //lock all data structures
+    unique_lock<recursive_mutex> index_lock(aIndexLock);
+    while(0 < aInProgressSearches)
+        aSearchesDone.wait(index_lock);
+    lock(aImgFeaturesLock, aTextFeaturesLock, aCurrentFeaturesSizeLock);
+    unique_lock<mutex> img_lock(aImgFeaturesLock, adopt_lock);
+    unique_lock<mutex> txt_lock(aTextFeaturesLock, adopt_lock);
+    unique_lock<mutex> fea_lock(aCurrentFeaturesSizeLock, adopt_lock);
+    set<string> to_remove;
+    //read img docs, this will handle all documents with images
+    for(map<int,string>::const_iterator it = aImgDocs.begin(); it != aImgDocs.end(); ++it){
+        to_remove.insert(it->second);
+    }
+    //read txt documents for the case when a document has no images
+    //read in memory txt features
+    for(map<string,vector<vector<char>>>::const_iterator it = aTextFeatures->begin();
+        it != aTextFeatures->end(); ++it){
+        to_remove.insert(it->first);
+    }
+    //read stored txt features
+    {
+        FeatureStreamer stream(this, TXT_FEATURES_FILE);
+        vector<vector<char>> tpm_keywords;
+        string tmp_name;
+        while(0 < stream.getNextFeatures(tmp_name, tpm_keywords)){
+            to_remove.insert(tmp_name);
+        }
+    }
+    //remove all documents
+    for(set<string>::const_iterator it = to_remove.begin(); it != to_remove.end(); ++it){
+        aStorage->remove(*it+suffix);
+    }
+    //remove features and index files
+    aStorage->remove(IMG_FEATURES_FILE);
+    aStorage->remove(IMG_INDEX_FILE);
+    aStorage->remove(TXT_FEATURES_FILE);
+    aStorage->remove(TXT_INDEX_FILE);
+    //clear memory
+    aImgFeatures.reset(new map<int,Mat>());
+    aNImgs = 0;
+    aTextFeatures.reset(new map<string,vector<std::vector<char>>>());
+    aNDocs = 0;
+    aCurrentFeaturesSize = 0;
+    aNextId = 0;
+    aImgDocs.clear();
+    for(unsigned i = 0; i < clusters; i++)
+        aImgIndex[i]->clear();
+    aTextIndex.clear();
+    //clear times and cache
+    resetTimes();
+    aStorage->resetTimes();
+    aStorage->resetCache();
 }
 
 }//end namespace

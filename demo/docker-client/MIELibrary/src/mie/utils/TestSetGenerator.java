@@ -22,24 +22,26 @@ public class TestSetGenerator {
 	private static final String MULTI_LINE_COMMENT_BEGIN = "/*";
 	private static final String MULTI_LINE_COMMENT_END = "*/";
 	private static final String KEY_VALUE_SEPARATOR = "[= ]";
-	private static final String LIMIT_SEPARATOR = "-";
 	private static final String VALUE_SEPARATOR = ",";
+	protected static final String LIMIT_SEPARATOR = "-";
 	//options
 	private static final String IP_OPTION = "ip";
 	private static final String THREADS_OPTION = "threads";
 	private static final String DATASET_OPTION = "path";
 	private static final String MODE_OPTION = "mode";
-	private static final String CACHE_OPTION = "cache";
 	private static final String OP_SEQUENCE = "ops";
 	private static final String STEP = "step";
 	private static final String OUTPUT = "output";
+	protected static final String CACHE_OPTION = "cache";
 	protected static final String COMPARE = "compare";
 	//options values
+	private static final String OUT_PRINT = "print";
+	private static final String OUT_NONE = "none";
 	protected static final String EXPLICIT_MODE = "explicit";
 	protected static final String DESCRIPTIVE_MODE = "descriptive";
-	private static final String USE_CACHE = "true";
-	private static final String NO_CACHE = "false";
-	private static final String OUT_PRINT = "print";
+	protected static final String CACHE_CLIENT = "client";
+	protected static final String CACHE_SERVER = "server";
+	protected static final String NO_CACHE = "none";
 	//default values
 	private static final String DEFAULT_MODE = EXPLICIT_MODE;
 	private static final String DEFAULT_IP = "localhost";
@@ -163,7 +165,8 @@ public class TestSetGenerator {
 			}
 		}
 		if(compare){
-			TestSet t = new TestSet(ip, EXPLICIT_MODE, dataset, COMPARE, 1, false);
+			String comp_op = COMPARE + TestSet.OPS_SEQUENCE_SPLIT_REGEX.charAt(1) + TestSet.NO_WIPE;
+			TestSet t = new TestSet(ip, EXPLICIT_MODE, dataset, comp_op, 1, NO_CACHE, false);
 			t.start();
 		}
 		if(ops)
@@ -176,8 +179,9 @@ public class TestSetGenerator {
 		for(String threads: testSetVariables[THREAD_VARIABLE_INDEX]){
 			for(String cache: testSetVariables[CACHE_VARIABLE_INDEX]){
 				for(String op: testSetVariables[OPS_VARIABLE_INDEX]){
-					boolean c = cache.equalsIgnoreCase(USE_CACHE) ? true : false;
-					testSets.add(new TestSet(ip, mode, dataset, op, Integer.parseInt(threads), c));
+					boolean o = !output.equalsIgnoreCase(OUT_NONE) ? true : false;
+					testSets.add(new TestSet(ip, mode, dataset, op, Integer.parseInt(threads),
+						cache, o));
 				}
 			}
 		}
@@ -283,13 +287,15 @@ public class TestSetGenerator {
 		Set<String> tmp = new HashSet<String>();
 		String[] values = args[nextArg+1].split(VALUE_SEPARATOR);
 		for(String value: values){
-			String[] limits = value.split(LIMIT_SEPARATOR);
+			/*String[] limits = value.split(LIMIT_SEPARATOR);
 			for(String limit: limits){
-				if(limit.equalsIgnoreCase(USE_CACHE) || limit.equalsIgnoreCase(NO_CACHE))
+				if(limit.equalsIgnoreCase(CACHE_CLIENT) || limit.equalsIgnoreCase(NO_CACHE) ||
+					limit.equalsIgnoreCase(CACHE_SERVER))
 					tmp.add(limit);
 				else
 					throw new ScriptErrorException(String.format(INVALID_ARGUMENT, args[nextArg]));
-			}
+			}*/
+			tmp.add(value);
 		}
 		testSetVariables[CACHE_VARIABLE_INDEX] = tmp.toArray(new String[0]);
 		return nextArg + 2;

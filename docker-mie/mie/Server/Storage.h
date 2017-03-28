@@ -63,6 +63,7 @@ class Storage{
 
     std::unique_ptr<MIE::Cache> aCache;
     bool aUseCache;
+    bool aClientCacheHint;
     size_t aMaxFileSize;
     time_t aPNRGWaitSec;
     long aPNRGWaitNSec;
@@ -177,6 +178,7 @@ class Storage{
     double getHitRatio();
     void resetTimes();
     void resetCache();
+    void setCache(bool useCache);
 
     Storage(int backend, bool cache = true, int model = 0, const std::vector<std::string>&
         ips = std::vector<std::string>(), int cid = 1);

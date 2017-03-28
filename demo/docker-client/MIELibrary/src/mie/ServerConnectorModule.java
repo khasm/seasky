@@ -227,6 +227,13 @@ public class ServerConnectorModule implements ServerConnector {
 	}
 
 	@Override
+	public boolean wipe() {
+		byte[] buffer = new byte[1];
+		buffer[0] = 'w';
+		return connectAndSend(buffer);
+	}
+
+	@Override
 	public boolean resetCache() {
 		byte[] buffer = new byte[1];
 		buffer[0] = 'r';
@@ -450,6 +457,14 @@ public class ServerConnectorModule implements ServerConnector {
 	public boolean clearTimes() {
 		byte[] buffer = new byte[1];
 		buffer[0] = 'c';
+		return connectAndSend(buffer);
+	}
+
+	@Override
+	public boolean setServerCache(boolean useCache) {
+		byte[] buffer = new byte[2];
+		buffer[0] = 'm';
+		buffer[1] = useCache ? (byte)1 : 0x0;
 		return connectAndSend(buffer);
 	}
 

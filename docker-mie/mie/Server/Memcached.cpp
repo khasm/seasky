@@ -122,7 +122,7 @@ unsigned int MemcachedClient::openConnections(unsigned int numberOfConnections){
     hints.ai_protocol = IPPROTO_TCP;
     int status = getaddrinfo(aMemcachedHost.c_str(), aMemcachedPort.c_str(), &hints, &host);
     if(status != 0){
-        error("Error getting ramcloud host info in MemcachedClient::openConnections");
+        error("Error getting memcached host info in MemcachedClient::openConnections");
     }
     else{
         //try to lock, if it cant we assume caller already owns the lock
