@@ -1,0 +1,8 @@
+ip=localhost
+threads=1-5
+path=/datasets
+mode=descriptive
+ops=base 100u; operations 50; add 60; search 40; title Add 60% Search 40%
+ops=base 100u; operations 50; add 50; search 50; title Add 50% Search 50%
+ops=base 100u; operations 50; add 40; search 60; title Add 40% Search 60%
+output=graph title:"Add Search Throughput Variation" x:threads y:ops/time serie:ops outdir:/output outfile:add_search

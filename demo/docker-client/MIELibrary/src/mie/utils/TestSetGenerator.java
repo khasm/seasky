@@ -8,15 +8,16 @@ import java.util.List;
 import java.util.LinkedList;
 import java.util.Set;
 import java.util.HashSet;
+import java.util.Map;
+import java.util.HashMap;
 
 public class TestSetGenerator {
 
 	//error strings
 	private static final String PARSING_ERROR_FORMAT = "Parsing error for %s on line %d: %s";
 	private static final String INVALID_COMMAND = "%s is not a recognized command";
-	private static final String ARG_ERROR = "Too %s arguments for %s";
-	private static final String FEW_ERROR = "few";
-	private static final String INVALID_ARGUMENT = "Invalid argument found in %s";
+	protected static final String ARG_ERROR = "Too few arguments for %s";
+	protected static final String INVALID_ARGUMENT = "Invalid argument found in %s";
 	//script keywords
 	private static final String SINGLE_LINE_COMMENT = "//";
 	private static final String MULTI_LINE_COMMENT_BEGIN = "/*";
@@ -24,6 +25,7 @@ public class TestSetGenerator {
 	private static final String KEY_VALUE_SEPARATOR = "[= ]";
 	private static final String VALUE_SEPARATOR = ",";
 	protected static final String LIMIT_SEPARATOR = "-";
+	protected static final String POST_PROCESS_SEPARATOR = " ";
 	//options
 	private static final String IP_OPTION = "ip";
 	private static final String THREADS_OPTION = "threads";
@@ -37,6 +39,7 @@ public class TestSetGenerator {
 	//options values
 	private static final String OUT_PRINT = "print";
 	private static final String OUT_NONE = "none";
+	private static final String OUT_GRAPH = "graph";
 	protected static final String EXPLICIT_MODE = "explicit";
 	protected static final String DESCRIPTIVE_MODE = "descriptive";
 	protected static final String CACHE_CLIENT = "client";
@@ -87,25 +90,33 @@ public class TestSetGenerator {
 		int nextArg = 0;
 		String[][] testSetVariables = new String[TOTAL_VARIABLES][];
 		boolean ops = false;
-		StringBuffer opsBuffer = new StringBuffer();
+		boolean graph = false;
+		StringBuffer buffer = new StringBuffer();
 		List<String> todoOps = new LinkedList<String>();
+		List<String> todoGraphs = new LinkedList<String>();
 		boolean compare = false;
 		while(nextArg < args.length){
 			try{
 				if(args[nextArg].equalsIgnoreCase(COMPARE)){
 					if(ops)
-						ops = processOps(todoOps, opsBuffer);
+						ops = processOps(todoOps, buffer);
+					if(graph)
+						graph = processGraph(todoGraphs, buffer);
 					compare = true;
 					nextArg++;
 				}
 				else if(args[nextArg].equalsIgnoreCase(THREADS_OPTION)){
 					if(ops)
-						ops = processOps(todoOps, opsBuffer);
+						ops = processOps(todoOps, buffer);
+					if(graph)
+						graph = processGraph(todoGraphs, buffer);
 					nextArg = processThreadOption(testSetVariables, nextArg);
 				}
 				else if(args[nextArg].equalsIgnoreCase(MODE_OPTION)){
 					if(ops)
-						ops = processOps(todoOps, opsBuffer);
+						ops = processOps(todoOps, buffer);
+					if(graph)
+						graph = processGraph(todoGraphs, buffer);
 					mode = args[nextArg+1];
 					if(!mode.equalsIgnoreCase(EXPLICIT_MODE) &&
 						!mode.equalsIgnoreCase(DESCRIPTIVE_MODE)){
@@ -116,61 +127,85 @@ public class TestSetGenerator {
 				}
 				else if(args[nextArg].equalsIgnoreCase(IP_OPTION)){
 					if(ops)
-						ops = processOps(todoOps, opsBuffer);
+						ops = processOps(todoOps, buffer);
+					if(graph)
+						graph = processGraph(todoGraphs, buffer);
 					ip = args[nextArg+1];
 					nextArg += 2;
 				}
 				else if(args[nextArg].equalsIgnoreCase(CACHE_OPTION)){
 					if(ops)
-						ops = processOps(todoOps, opsBuffer);
+						ops = processOps(todoOps, buffer);
+					if(graph)
+						graph = processGraph(todoGraphs, buffer);
 					nextArg = processCacheOption(testSetVariables, nextArg);
 				}
 				else if(args[nextArg].equalsIgnoreCase(DATASET_OPTION)){
 					if(ops)
-						ops = processOps(todoOps, opsBuffer);
+						ops = processOps(todoOps, buffer);
+					if(graph)
+						graph = processGraph(todoGraphs, buffer);
 					dataset = new File(args[nextArg+1]);
 					nextArg += 2;
 				}
 				else if(args[nextArg].equalsIgnoreCase(OP_SEQUENCE)){
 					if(ops)
-						ops = processOps(todoOps, opsBuffer);
+						ops = processOps(todoOps, buffer);
+					if(graph)
+						graph = processGraph(todoGraphs, buffer);
 					ops = true;
 					nextArg++;
 				}
 				else if(args[nextArg].equalsIgnoreCase(OUTPUT)){
 					if(ops)
-						ops = processOps(todoOps, opsBuffer);
-					output = args[nextArg+1];
-					if(!output.equalsIgnoreCase(OUT_PRINT)){
+						ops = processOps(todoOps, buffer);
+					if(graph)
+						graph = processGraph(todoGraphs, buffer);
+					String tmp = args[nextArg+1];
+					if(tmp.equalsIgnoreCase(OUT_GRAPH)){
+						graph = true;
+						if(output.equalsIgnoreCase(OUT_NONE))
+							output = tmp;
+					}
+					else if(!tmp.equalsIgnoreCase(OUT_PRINT) &&
+						!tmp.equalsIgnoreCase(OUT_NONE)){
 						throw new ScriptErrorException(String.format(INVALID_ARGUMENT,
 							args[nextArg]));
+					}
+					else{
+						output = tmp;
 					}
 					nextArg += 2;
 				}
 				//convenience for command line arguments
 				else if(args[nextArg].equalsIgnoreCase(OUT_PRINT)){
+					if(ops)
+						ops = processOps(todoOps, buffer);
+					if(graph)
+						graph = processGraph(todoGraphs, buffer);
 					output = args[nextArg++];
 				}
-				else if(ops){
-					opsBuffer.append(args[nextArg++]);
-					opsBuffer.append(" ");
+				else if(ops || graph){
+					buffer.append(args[nextArg++]);
+					buffer.append(POST_PROCESS_SEPARATOR);
 				}
 				else{
 					throw new ScriptErrorException(String.format(INVALID_COMMAND, args[nextArg]));
 				}
 			}
 			catch(ArrayIndexOutOfBoundsException e){
-				throw new ScriptErrorException(String.format(ARG_ERROR, FEW_ERROR,
-					args[nextArg]));
+				throw new ScriptErrorException(String.format(ARG_ERROR, args[nextArg]));
 			}
 		}
 		if(compare){
 			String comp_op = COMPARE + TestSet.OPS_SEQUENCE_SPLIT_REGEX.charAt(1) + TestSet.NO_WIPE;
 			TestSet t = new TestSet(ip, EXPLICIT_MODE, dataset, comp_op, 1, NO_CACHE, false);
-			t.start();
+			t.execute();
 		}
 		if(ops)
-			ops = processOps(todoOps, opsBuffer);
+			ops = processOps(todoOps, buffer);
+		else if(graph)
+			graph = processGraph(todoGraphs, buffer);
 		testSetVariables[OPS_VARIABLE_INDEX] = todoOps.toArray(new String[0]);
 		if(null == testSetVariables[THREAD_VARIABLE_INDEX])
 			testSetVariables[THREAD_VARIABLE_INDEX] = new String[]{DEFAULT_THREADS};
@@ -185,11 +220,17 @@ public class TestSetGenerator {
 				}
 			}
 		}
+		List<DataSerie> data = new LinkedList<DataSerie>();
 		for(TestSet t: testSets){
-			t.start();
-			if(output.equalsIgnoreCase(OUT_PRINT)){
+			DataSerie ds = t.execute();
+			if(output.equalsIgnoreCase(OUT_PRINT))
 				System.out.println(t);
-			}
+			if(!todoGraphs.isEmpty())
+				data.add(ds);
+		}
+		for(String graphOps: todoGraphs){
+			GNUPlot plot = new GNUPlot(graphOps, data);
+			plot.execute();
 		}
 	}
 
@@ -276,8 +317,7 @@ public class TestSetGenerator {
 			testSetVariables[THREAD_VARIABLE_INDEX] = threadValues.toArray(new String[0]);
 		}
 		catch(ArrayIndexOutOfBoundsException e){
-			throw new ScriptErrorException(String.format(ARG_ERROR, FEW_ERROR,
-				args[nextArg]));
+			throw new ScriptErrorException(String.format(ARG_ERROR, args[nextArg]));
 		}
 		return ret;
 	}
@@ -304,6 +344,12 @@ public class TestSetGenerator {
 	private boolean processOps(List<String> todoOps, StringBuffer opsBuffer) {
 		todoOps.add(opsBuffer.toString());
 		opsBuffer.delete(0, opsBuffer.length());
+		return false;
+	}
+
+	private boolean processGraph(List<String> todoGraphs, StringBuffer graphBuffer) {
+		todoGraphs.add(graphBuffer.toString());
+		graphBuffer.delete(0, graphBuffer.length());
 		return false;
 	}
 

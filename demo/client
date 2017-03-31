@@ -1,6 +1,6 @@
 #!/bin/bash
 
-LOG=$PWD"/logs"
+OUTPUT=$PWD"/output"
 DATASET=$PWD"/datasets"
 SCRIPTS=$PWD"/scripts"
 
@@ -10,15 +10,16 @@ if [ "$?" != 0 ]; then
 	exit 1
 fi
 
-stat $LOG > /dev/null 2>&1
+stat $OUTPUT > /dev/null 2>&1
 if [ "$?" != 0 ]; then
-	echo "The logs directory not found, creating it."
+	echo "The output directory was not found, creating it."
 	mkdir logs
 fi
 
-stat $SCRITPS > /dev/null 2>&1
+stat $SCRIPTS > /dev/null 2>&1
 if [ "$?" != 0 ]; then
-	mkdir scripts
+	echo "The $SCRIPTS directory was not found. Exiting"
+	exit 1
 fi
 
-docker run --rm --net=host --name=client -v $LOG":/logs" -v $DATASET":/datasets" -v $SCRIPTS":/scripts" mie_client custom "$@"
+docker run --rm --net=host --name=client -v $OUTPUT":/output" -v $DATASET":/datasets" -v $SCRIPTS":/scripts" mie_client custom "$@"

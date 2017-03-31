@@ -356,6 +356,11 @@ public class MIEClient implements MIE {
 	public boolean setServerCache(boolean useCache) {
 		return server.setServerCache(useCache);
 	}
+
+	@Override
+	public double getCacheHitRatio() {
+		return cache.getHitRatio();
+	}
 	
 	/**
 	 * Scans a mime document for text and image parts and returns the cbir encrypted features of each part

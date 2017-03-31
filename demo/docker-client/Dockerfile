@@ -1,5 +1,5 @@
 FROM ubuntu:16.04
-RUN apt-get update && apt-get install -y openjdk-8-jdk automake autoconf libgtk2.0-dev pkg-config libtool libssl-dev build-essential python-dev python-numpy libtbb2 libtbb-dev libjpeg-dev libpng-dev libtiff-dev libjasper-dev libdc1394-22-dev cmake git libavcodec-dev libavformat-dev libswscale-dev ant libtspi-dev libtspi1
+RUN apt-get update && apt-get install -y openjdk-8-jdk automake autoconf libgtk2.0-dev pkg-config libtool libssl-dev build-essential python-dev python-numpy libtbb2 libtbb-dev libjpeg-dev libpng-dev libtiff-dev libjasper-dev libdc1394-22-dev cmake git libavcodec-dev libavformat-dev libswscale-dev ant libtspi-dev libtspi1 gnuplot
 COPY ./trousers-0.3.13 /trousers
 WORKDIR "/trousers"
 RUN ./bootstrap.sh && ./configure && make && make install
@@ -20,7 +20,7 @@ RUN chmod +x ./update_java.security && ./update_java.security
 #RUN chmod +x /fix-dataset && /fix-dataset
 COPY ./MIELibrary /MIELibrary
 WORKDIR "/MIELibrary"
-RUN cd src && make && cd .. && javac -d bin -cp /usr/local/share/OpenCV/java/opencv-2410.jar src/mie/*.java
+RUN cd src && make && cd .. && javac -d bin -cp /usr/local/share/OpenCV/java/opencv-2410.jar `find src -name *.java`
 COPY ./keys /MIELibrary/keys
 COPY ./run_tests /MIELibrary/run_tests
 RUN chmod +x ./run_tests

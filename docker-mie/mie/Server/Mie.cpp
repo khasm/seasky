@@ -203,8 +203,9 @@ bool MIE::FeatureStreamer::writeHeader(size_t nFeatures, int featureSize)
 }
 
 MIE::MIE(Storage* storage) : aIndexTime(0), aTrainTime(0),
-    aSearchTime(0), aNetworkIndexTime(0), aNetworkFeatureTime(0), aNImgs(0), aNextId(0), aNDocs(0),
-    aInProgressSearches(0), aIndexing(false), aCurrentFeaturesSize(0)
+    aSearchTime(0), aNSearchingThreads(0), aNetworkIndexTime(0), aNetworkFeatureTime(0),
+    aNImgs(0), aNextId(0), aNDocs(0), aInProgressSearches(0), aIndexing(false),
+    aCurrentFeaturesSize(0)
 {
     aStorage = storage;
     aMaxFeaturesSize = getMaxFeaturesSize();
@@ -281,10 +282,10 @@ set<QueryResult,cmp_QueryResult> MIE::search(const char* data, size_t& nResults)
     merged_results = mergeSearchResults(img_results, text_results);
     double time = diffSec(aStartSearchTime, getTime());
     tmp.lock();
-    if(1 == aNSearchingThreads){
+    if(1 == aNSearchingThreads)
         aSearchTime += time;
-    }
     aNSearchingThreads--;
+    tmp.unlock();
     index_lock.lock();
     aInProgressSearches--;
     if(0 == aInProgressSearches)
@@ -411,9 +412,11 @@ set<QueryResult,cmp_QueryResult> MIE::textSearch(const vector<vector<char>>& key
     map<string,double> queryResults;
     for (map<vector<char>,int>::iterator queryTerm = query.begin(); queryTerm != query.end();
         ++queryTerm) {
-        shared_ptr<map<string,int>> posting_list = aTextIndex[queryTerm->first];
-        if(!posting_list)
+        map<vector<char>,shared_ptr<map<string,int>>>::iterator it_posting_list =
+            aTextIndex.find(queryTerm->first);
+        if(aTextIndex.end() == it_posting_list)
             continue;
+        shared_ptr<map<string,int>> posting_list = it_posting_list->second;
         double idf = getIdf(aNDocs, posting_list->size());
         //cout<<aNDocs<<" "<<posting_list->size()<<" "<<idf;
         for (map<string,int>::iterator posting = posting_list->begin(); posting != posting_list->end();
@@ -1023,6 +1026,7 @@ void MIE::wipe(const string& suffix)
     aStorage->remove(IMG_INDEX_FILE);
     aStorage->remove(TXT_FEATURES_FILE);
     aStorage->remove(TXT_INDEX_FILE);
+    aStorage->remove(CODEBOOK_FILE);
     //clear memory
     aImgFeatures.reset(new map<int,Mat>());
     aNImgs = 0;
@@ -1034,6 +1038,8 @@ void MIE::wipe(const string& suffix)
     for(unsigned i = 0; i < clusters; i++)
         aImgIndex[i]->clear();
     aTextIndex.clear();
+    aBowExtr = unique_ptr<BOWImgDescriptorExtractor>(new BOWImgDescriptorExtractor(
+        DescriptorMatcher::create("BruteForce-L1")));
     //clear times and cache
     resetTimes();
     aStorage->resetTimes();

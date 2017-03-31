@@ -481,7 +481,7 @@ int MemcachedClient::clear()
 double MemcachedClient::getHitRatio()
 {
     unique_lock<mutex> tmp(aStatsLock);
-    return aTotalHits / aTotalReads * 100;
+    return 0 < aTotalReads ? aTotalHits / aTotalReads * 100 : 0;
 }
 
 void MemcachedClient::resetStats()

@@ -70,9 +70,9 @@ public class ClientThread extends Thread {
 
 	public void run() {
 		monitor.ready();
-		System.out.println("Thread "+threadId+" started");
+		//System.out.println("Thread "+threadId+" started");
 		for(Command command: commands){
-			System.out.println("Thread "+threadId+" exec: "+command.toString());
+			//System.out.println("Thread "+threadId+" exec: "+command.toString());
 			String op = command.getOp().toLowerCase();
 			try{
 				if(op.startsWith(TestSet.ADD) || op.startsWith(TestSet.SEARCH)||
@@ -106,6 +106,8 @@ public class ClientThread extends Thread {
 							if(max > last)
 								max = last;
 							last = max;
+							/*System.out.println("Thread "+threadId+" exec change: "+command.getOp()+" "+
+								first+" "+last);*/
 						}
 					}
 					if(op.equalsIgnoreCase(TestSet.ADD)){
@@ -137,7 +139,7 @@ public class ClientThread extends Thread {
 							}
 						}
 						int[] ids = setupGet(cacheMode, first, last);
-						System.out.println("Thread "+threadId+": "+ids[0]+" "+ids[ids.length-1]);
+						//System.out.println("Thread "+threadId+": "+ids[0]+" "+ids[ids.length-1]);
 						if(op.equalsIgnoreCase(TestSet.GET)){
 							getUnstructured(ids, first);
 						}

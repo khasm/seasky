@@ -45,6 +45,7 @@ public class TestSet {
 	public static final String OPERATIONS = "operations";
 	public static final String NO_WIPE = "nowipe";
 	public static final String WIPE = "wipe";
+	public static final String TITLE = "title";
 	//command args
 	private static final String INDEX_WAIT_SHORT = "w";
 	private static final String INDEX_WAIT_LONG = "wait";
@@ -64,7 +65,6 @@ public class TestSet {
 	private static final String COMMAND_ARGS_SEPARATOR = " ";
 	//queue automatic generation
 	private static final int PREFIX_DIVISION = 1000;
-	private static final char TYPE_UNDEFINED = '«';
 	private static final int N_OP_TYPES = 6; //if adding more operation types adjust this value
 	private static final int ADD_INDEX = 0;
 	private static final int SEARCH_INDEX = 1;
@@ -78,6 +78,7 @@ public class TestSet {
 	private String aOpsSequence;
 	private String aStats;
 	private String aCache;
+	private String aTitle;
 	private File aDatasetDir;
 	private Queue<Command> aOperations;
 	private int aNThreads;
@@ -99,6 +100,7 @@ public class TestSet {
 		aOpsSequence = ops;
 		aStats = "";
 		aCache = cache;
+		aTitle = ops;
 		aDatasetDir = datasetDir;
 		aOperations = new LinkedList<Command>();
 		aNThreads = threads;
@@ -114,7 +116,7 @@ public class TestSet {
 		aMonitor = new Monitor(aNThreads);
 	}
 
-	public void start() throws IOException, ScriptErrorException {
+	public DataSerie execute() throws IOException, ScriptErrorException {
 		boolean clientCache = false;
 		boolean serverCache = false;
 		String[] limits = aCache.split(TestSetGenerator.LIMIT_SEPARATOR);
@@ -138,7 +140,7 @@ public class TestSet {
 		}
 		catch(NoSuchAlgorithmException | NoSuchPaddingException e){
 			e.printStackTrace();
-			return;
+			return null;
 		}
 		if(aMode.equalsIgnoreCase(TestSetGenerator.EXPLICIT_MODE)){
 			runExplicit(clientCache);
@@ -149,10 +151,14 @@ public class TestSet {
 		else{
 			throw new ScriptErrorException(String.format(UNRECOGNIZED_MODE, aMode));
 		}
+		DataSerie ds = null;
 		if(aOutput)
-			stats(client);
-		if(aWipe)
+			ds = stats(client);
+		if(aWipe){
+			System.out.println("Resetting server");
 			client.wipe();
+		}
+		return ds;
 	}
 
 	public String dump() {
@@ -172,42 +178,50 @@ public class TestSet {
 		return aStats;
 	}
 
-	private void stats(MIE client) {
-		float networkTime = 0;
+	private DataSerie stats(MIE client) {
+
 		StringBuffer serverSide = new StringBuffer();
-		float indexWaitValue = 0;
-		networkTime = client.getNetworkTime()/1000000000f;
 		Map<String,String> stats = client.printServerStatistics();
-		for(String key: stats.keySet()){
-			String value = stats.get(key);
-			serverSide.append(String.format("%s: %s\n", key, value));
-			if(key.equalsIgnoreCase("Train time")||key.equalsIgnoreCase("Network feature time")||
-				key.equalsIgnoreCase("Network index time")||key.equalsIgnoreCase("Index time")){
-				indexWaitValue += Float.parseFloat(value);
+
+		DataSerie ds = new DataSerie(aNThreads, aNOperations, aBytesUpload, aBytesSearch,
+			aBytesDownload, TimeSpec.getIndexTime(), TimeSpec.getFeatureTime(),
+			TimeSpec.getEncryptionTime(),TimeSpec.getEncryptionSymmetricTime(),
+			TimeSpec.getEncryptionCbirTime(), TimeSpec.getEncryptionMiscTime(),
+			client.getNetworkTime(), aMonitor.getTotalTime(), aIndexWait, stats, aSearchStats,
+			client.getCacheHitRatio(), aTitle);
+
+		for(DataSerie.Stat t: DataSerie.Stat.values()){
+			if(!t.isClientTime()){
+				serverSide.append(String.format("%s: %s\n", t.getKey(), ds.getStat(t)));
 			}
 		}
-		if(aIndexWait)
-			networkTime -= indexWaitValue;
-		long indexTime = TimeSpec.getIndexTime();
-		long featureExtractionTime = TimeSpec.getFeatureTime();
-		long encryptionTime = TimeSpec.getEncryptionTime();
-		long encryptionSymmetricTime = TimeSpec.getEncryptionSymmetricTime();
-		long encryptionCbirTime = TimeSpec.getEncryptionCbirTime();
-		long encryptionMiscTime = TimeSpec.getEncryptionMiscTime();
-		float totalTime = aMonitor.getTotalTime();
-		String encryption = String.format("CBIR encryption: %f\nSymmetric encryption: %f\nMisc: %f\n",
-			encryptionCbirTime/1000000000f, encryptionSymmetricTime/1000000000f,
-			encryptionMiscTime/1000000000f);
+
+		String others = String.format("CBIR encryption: %f\nSymmetric encryption: %f\nMisc: %f\n"+
+			"Client Cache Hit Ratio: %.6f\n",
+			ds.getStat(DataSerie.Stat.ENCRYPTION_CBIR),
+			ds.getStat(DataSerie.Stat.ENCRYPTION_SYMMETRIC),
+			ds.getStat(DataSerie.Stat.ENCRYPTION_MISC),
+			ds.getStat(DataSerie.Stat.CLIENT_HIT_RATIO));
+
 		String clientSide = String.format(
-				"featureTime: %f indexTime: %f cryptoTime: %f cloudTime: %f %s\nThroughput:\n"+
-				"Total Bytes uploaded: %d Total Bytes searched: %d Total Bytes downloaded: %d\n"+
-				"Bytes uploaded/s: %.6f Bytes searched/s: %.6f Bytes downloaded/s: %.6f\n"+
-				"Total operations: %d Operations/s: %.6f",
-				featureExtractionTime/1000000000f, indexTime/1000000000f, encryptionTime/1000000000f,
-				networkTime, aMonitor.toString(), aBytesUpload, aBytesSearch, aBytesDownload,
-				aBytesUpload/totalTime, aBytesSearch/totalTime, aBytesDownload/totalTime,
-				aNOperations, aNOperations/totalTime);
-		aStats = serverSide.toString() + encryption + clientSide;
+				"featureTime: %.6f indexTime: %.6f cryptoTime: %.6f cloudTime: %.6f Total time: %.6f\n"+
+				"Throughput:\nTotal Bytes uploaded: %.0f Total Bytes searched: %.0f Total Bytes "+
+				"downloaded: %.0f\nBytes uploaded/s: %.6f Bytes searched/s: %.6f Bytes downloaded/s:"+
+				" %.6f\nTotal operations: %.0f Operations/s: %.6f",
+				ds.getStat(DataSerie.Stat.FEATURE_EXTRACTION),
+				ds.getStat(DataSerie.Stat.CLIENT_INDEX),
+				ds.getStat(DataSerie.Stat.ENCRYPTION_TOTAL),
+				ds.getStat(DataSerie.Stat.CLIENT_NETWORK_TIME),
+				ds.getStat(DataSerie.Stat.TOTAL_TIME), ds.getStat(DataSerie.Stat.UPLOAD),
+				ds.getStat(DataSerie.Stat.SEARCH),
+				ds.getStat(DataSerie.Stat.DOWNLOAD),
+				ds.getStat(DataSerie.Stat.UPLOAD)/ds.getStat(DataSerie.Stat.TOTAL_TIME),
+				ds.getStat(DataSerie.Stat.SEARCH)/ds.getStat(DataSerie.Stat.TOTAL_TIME),
+				ds.getStat(DataSerie.Stat.DOWNLOAD)/ds.getStat(DataSerie.Stat.TOTAL_TIME),
+				ds.getStat(DataSerie.Stat.TOTAL_OPERATIONS),
+				ds.getStat(DataSerie.Stat.TOTAL_OPERATIONS)/ds.getStat(DataSerie.Stat.TOTAL_TIME));
+		aStats = aTitle+"\n"+serverSide.toString() + others + clientSide;
+		return ds;
 	}
 
 	private void parseCommands() throws ScriptErrorException {
@@ -222,7 +236,7 @@ public class TestSet {
 				   args[0].equalsIgnoreCase(GET)||args[0].equalsIgnoreCase(GET_MIME)||
 				   args[0].equalsIgnoreCase(SEARCH)||args[0].equalsIgnoreCase(SEARCH_MIME)||
 				   args[0].equalsIgnoreCase(BASE)||args[0].equalsIgnoreCase(OPERATIONS)||
-				   args[0].equalsIgnoreCase(WAIT)){
+				   args[0].equalsIgnoreCase(WAIT)||args[0].equalsIgnoreCase(TITLE)){
 					throw new ScriptErrorException(String.format(ARG_ERROR, FEW_ERROR, s));
 				}
 				else if(args[0].equalsIgnoreCase(INDEX)||args[0].equalsIgnoreCase(RESET)||
@@ -250,6 +264,16 @@ public class TestSet {
 					if(4 < args.length){
 						throw new ScriptErrorException(String.format(ARG_ERROR, MANY_ERROR, s));
 					}
+					else if((args[0].equalsIgnoreCase(GET)||args[0].equalsIgnoreCase(GET_MIME))&&
+						4 == args.length){
+						String lastArg = args[args.length-1];
+						if(!lastArg.equalsIgnoreCase(CACHE_80_USER)&&
+							!lastArg.equalsIgnoreCase(CACHE_CLIENT_100_USER)&&
+							!lastArg.equalsIgnoreCase(CACHE_SERVER_100_USER)&&
+							!lastArg.equalsIgnoreCase(CACHE_DOUBLE_USER)){
+							throw new ScriptErrorException(String.format(INVALID_ARGUMENT, s));
+						}
+					}
 					String[] cArgs = new String[args.length-1];
 					for(int i = 1; i < args.length; i++)
 						cArgs[i-1] = args[i];
@@ -275,6 +299,14 @@ public class TestSet {
 					else{
 						throw new ScriptErrorException(String.format(INVALID_ARGUMENT, s));
 					}
+				}
+				else if(args[0].equalsIgnoreCase(TITLE)){
+					StringBuffer titleBuffer = new StringBuffer();
+					titleBuffer.append("\""+args[1]);
+					for(int i = 2; i < args.length; i++)
+						titleBuffer.append(" "+args[i]);
+					titleBuffer.append("\"");
+					aTitle = titleBuffer.toString();
 				}
 				else if(args[0].equalsIgnoreCase(RESET)||args[0].equalsIgnoreCase(CLEAR)||
 					args[0].equalsIgnoreCase(SYNC)){
@@ -529,7 +561,6 @@ public class TestSet {
 	private Command generateCommand(int probIndex, int nDocs, int[] ids, int index)
 		throws ScriptErrorException {
 		String op = getOpType(probIndex);
-		char mode = TYPE_UNDEFINED;
 		int maxDocs = -1;
 		int arg = -1;
 		switch(probIndex){
@@ -633,6 +664,7 @@ public class TestSet {
 			nDocs = maxDocs;
 		baseSetup.add(new Command(op, new String[]{"0", ""+nDocs}));
 		baseSetup.add(new Command(INDEX, new String[]{INDEX_WAIT_SHORT}));
+		baseSetup.add(new Command(CLEAR, new String[0]));
 		try{
 			MIE client = new MIEClient(aIp, false);
 			Monitor m = new Monitor(1);

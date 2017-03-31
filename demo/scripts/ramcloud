@@ -1,0 +1,10 @@
+ip=localhost
+threads=1
+path=/datasets
+mode=explicit
+ops=add 0 99; title Add
+ops=title Index/*Doesnt matter where the title is placed.
+It also doesnt matter where comments are or how many lines they take*/; index w;
+ops=search 0 99; title Search
+ops=get 0 99; title Get; wipe //the default when using explicit mode is to not erase everything in the server
+output=graph title:"Depsky and Ramcloud Comparision" x:ops y:time seriename:Ramcloud outdir:/output outfile:ramcloud extradir:/output extra:depsky.dat

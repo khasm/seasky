@@ -128,5 +128,7 @@ public interface MIE {
 	public boolean wipe();
 
 	public boolean setServerCache(boolean useCache);
+
+	public double getCacheHitRatio();
 	
 }

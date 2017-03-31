@@ -305,10 +305,15 @@ void MIEServerMT::printTimes(int newsockfd)
     double network_feature_time = mie->networkFeatureTime();
     double network_index_time = mie->networkIndexTime();
     //printf("%lu %.6f %lu %.6f\n", nu, netUp, nd, netDown);
-    double network_time = network_feature_time + network_index_time + aNetworkAddParallelTime + aNetworkGetParallelTime;
+    double network_time = network_feature_time + network_index_time + aNetworkAddParallelTime +
+        aNetworkGetParallelTime;
     char* buffer;
     asprintf(&buffer, 
-    "Index time: %.6f\nTrain time: %.6f\nSearch time: %.6f\nNetwork time: %.6f\nNetwork feature time: %.6f\nNetwork index time: %.6f\nNetwork add time: %.6f\nNetwork get time: %.6f\nNetwork parallel add: %.6f\nNetwork parallel get: %.6f\nNetwork upload time: %.6f\nNetwork download time: %.6f\nNetwork parallel upload: %.6f\nNetwork parallel download: %.6f\nHit Ratio: %.6f\n",
+    "Index time: %.6f\nTrain time: %.6f\nSearch time: %.6f\nNetwork time: %.6f\n"
+    "Network feature time: %.6f\nNetwork index time: %.6f\nNetwork add time: %.6f\n"
+    "Network get time: %.6f\nNetwork parallel add: %.6f\nNetwork parallel get: %.6f\n"
+    "Network upload time: %.6f\nNetwork download time: %.6f\nNetwork parallel upload: %.6f\n"
+    "Network parallel download: %.6f\nServer Cache Hit Ratio: %.6f\n",
     mie->indexTime(), mie->trainTime(), mie->searchTime(), network_time, network_feature_time, 
     network_index_time, aNetworkAddTotalTime, aNetworkGetTotalTime, aNetworkAddParallelTime, 
     aNetworkGetParallelTime, net_total_up, net_total_down, net_parallel_up, net_parallel_down,

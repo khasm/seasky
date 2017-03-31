@@ -26,6 +26,14 @@ public class SearchStats {
 		average = 0;
 	}
 
+	public double getHitRatio() {
+		return 0 < total ? ((double)hit/(double)total)*100 : 0;
+	}
+
+	public double getAverageScore() {
+		return 0 < total ? average/total : -1;
+	}
+
 	public void hit() {
 		hit++;
 		total++;

@@ -1,0 +1,9 @@
+ip=localhost
+threads=1
+path=/datasets
+mode=explicit
+ops=add 0 99; title Add
+ops=title Index; index w;
+ops=search 0 99; title Search
+ops=get 0 99; title Get; wipe
+output=graph title:"Depsky and Ramcloud Comparision" x:ops y:time seriename:Depsky outdir:/output outfile:depsky extradir:/output extra:ramcloud.dat

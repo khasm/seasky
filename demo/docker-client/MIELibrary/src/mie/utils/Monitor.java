@@ -33,7 +33,7 @@ public class Monitor {
 		synchronized(lock){
 			waitingTimerThreads++;
 			if(waitingTimerThreads == nThreads){
-				tmpTime = System.currentTimeMillis();
+				tmpTime = System.nanoTime();
 				totalTime += tmpTime - startTime;
 			}
 		}
@@ -45,7 +45,7 @@ public class Monitor {
 		}
 		synchronized(lock){
 			if(-1 != tmpTime && nThreads == waitingTimerThreads)
-				startTime = System.currentTimeMillis();
+				startTime = System.nanoTime();
 			waitingTimerThreads--;
 		}
 	}
@@ -99,20 +99,20 @@ public class Monitor {
 		synchronized(lock){
 			ready = true;
 			lock.notifyAll();
-			startTime = System.currentTimeMillis();
+			startTime = System.nanoTime();
 		}
 	}
 
 	public void end() {
-		totalTime += System.currentTimeMillis() - startTime;
+		totalTime += System.nanoTime() - startTime;
 	}
 
-	public float getTotalTime() {
-		return totalTime/1000f;
+	public long getTotalTime() {
+		return totalTime;
 	}
 
 	@Override
 	public String toString() {
-		return String.format("Total time: %.6f", getTotalTime());
+		return String.format("Total time: %.6f", getTotalTime()/1000000000f);
 	}
 }
