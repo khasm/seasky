@@ -114,10 +114,10 @@ public interface MIE {
 	public void clearCache();
 
 	/**
-	 * Reset all server time measurements
+	 * Reset all time measurements
 	 * @return false if there was a problem connecting to the server
 	 */
-	public boolean clearServerTimes();
+	public boolean clearTimes();
 
 	public void resetServerCache();
 

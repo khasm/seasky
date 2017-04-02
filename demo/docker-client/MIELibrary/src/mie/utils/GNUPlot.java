@@ -14,8 +14,8 @@ import java.util.TreeSet;
 import java.util.SortedMap;
 import java.util.TreeMap;
 import java.util.Comparator;
-import mie.utils.DataSerie.Unit;
-import mie.utils.DataSerie.Stat;
+import mie.utils.DataPoint.Unit;
+import mie.utils.DataPoint.Stat;
 
 public class GNUPlot {
 
@@ -23,6 +23,7 @@ public class GNUPlot {
 	private static final String MISSING_CLOSING_MARK = "Missing closing quotation marks on title";
 	private static final String OUTPUT_DIR_ERROR = "Couldn't find or create directory %s";
 	private static final String EXTRA_INPUT_ERROR = "Problem reading extra input file %s";
+	private static final String INVALID_EXTRA_X_AXIS = "Incompatible X axis options.";
 	//GNUPlot related constants
 	private static final String BASE_SCRIPT =
 		"set datafile commentschars '%s'\n"+
@@ -33,6 +34,7 @@ public class GNUPlot {
 		"set offsets graph 0, 0, 0.05, 0.05\n"+
 		"%s\n"+
 		"set xlabel '%s'\n"+
+		"set xtics rotate by -45\n"+
 		"set ylabel '%s'\n"+
 		"set term %s\n"+
 		"set output '%s.%s'\n"+
@@ -57,7 +59,9 @@ public class GNUPlot {
 	private static final String DEFAULT_DIR = "";
 	//Parser keywords
 	private static final String X_AXIS = "x";
+	private static final String X_LABEL = "xlabel";
 	private static final String Y_AXIS = "y";
+	private static final String Y_LABEL = "ylabel";
 	private static final String SERIES = "serie";
 	private static final String SERIE_NAME = "seriename";
 	private static final String TITLE = "title";
@@ -66,9 +70,11 @@ public class GNUPlot {
 	private static final String EXTRA_INPUT_DIR = "extradir";
 	private static final String EXTRA_DATA = "extra";
 	private static final String KEYWORD_VALUE_SPLIT = ":";
-	private static final String VALUE_SPLIT = "#";
+	private static final String VALUES_SPLIT = ",";
+	private static final String VALUE_UNIT_SPLIT = "#";
 	private static final String UNIT_SPLIT = "/";
-	private static final String TITLE_DELIMITER = "\"";
+	private static final char STRING_DELIMITER = '"';
+	private static final char STRING_DELIMITER_ESCAPE = '\\';
 
 	//Labels
 	private static final String OPS_X_LABEL = "Execution profile";
@@ -77,32 +83,45 @@ public class GNUPlot {
 	private static final String LABELS_LABEL = "v";
 
 	private enum GraphOption {
-		OPS(true, "ops", new Stat[]{Stat.TOTAL_OPERATIONS}),
-		THREADS(true, "threads", new Stat[]{Stat.TOTAL_THREADS}),
-		//Valid Y axis
-		TIME(false,"time",new Stat[]{Stat.TOTAL_TIME}),
-		OPS_PER_TIME(false, "ops/time",new Stat[]{Stat.TOTAL_OPERATIONS, Stat.TOTAL_TIME}),
-		UPLOAD(false, "upload", new Stat[]{Stat.UPLOAD}),
-		SEARCH(false, "search",new Stat[]{Stat.SEARCH}),
-		DOWNLOAD(false, "download", new Stat[]{Stat.DOWNLOAD}),
-		UPLOAD_PER_TIME(false, "upload/time", new Stat[]{Stat.UPLOAD, Stat.TOTAL_TIME}),
-		SEARCH_PER_TIME(false, "search/time", new Stat[]{Stat.SEARCH, Stat.TOTAL_TIME}),
-		DOWNLOAD_PER_TIME(false, "download/time", new Stat[]{Stat.DOWNLOAD, Stat.TOTAL_TIME}),
-		HIT_RATIO(false, "precision", new Stat[]{Stat.HIT_RATIO}),
-		SCORE(false, "score", new Stat[]{Stat.AVERAGE_SCORE});
+		OPS("ops", new Stat[]{Stat.TOTAL_OPERATIONS}),
+		THREADS("threads", new Stat[]{Stat.TOTAL_THREADS}),
 
-		private boolean aIsValidX;
+		OPS_PER_TIME("ops/time",new Stat[]{Stat.TOTAL_OPERATIONS, Stat.TOTAL_TIME}),
+		//bandwidth
+		UPLOAD("upload", new Stat[]{Stat.UPLOAD}),
+		SEARCH("search",new Stat[]{Stat.SEARCH}),
+		DOWNLOAD("download", new Stat[]{Stat.DOWNLOAD}),
+		UPLOAD_PER_TIME("upload/time", new Stat[]{Stat.UPLOAD, Stat.TOTAL_TIME}),
+		SEARCH_PER_TIME("search/time", new Stat[]{Stat.SEARCH, Stat.TOTAL_TIME}),
+		DOWNLOAD_PER_TIME("download/time", new Stat[]{Stat.DOWNLOAD, Stat.TOTAL_TIME}),
+		//times
+		TIME("time", new Stat[]{Stat.TOTAL_TIME}),
+		CLIENT_INDEX("client_index_time", new Stat[]{Stat.CLIENT_INDEX}),
+		FEATURE_EXTRACTION("feature_extraction", new Stat[]{Stat.FEATURE_EXTRACTION}),
+		ENCRYPTION_TOTAL("encryption_time", new Stat[]{Stat.ENCRYPTION_SYMMETRIC}),
+		ENCRYPTION_SYMMETRIC("symmetric_time", new Stat[]{Stat.ENCRYPTION_SYMMETRIC}),
+		ENCRYPTION_CBIR("cbir_time", new Stat[]{Stat.ENCRYPTION_CBIR}),
+		ENCRYPTION_MISC("misc_time", new Stat[]{Stat.ENCRYPTION_MISC}),
+		CLIENT_NETWORK_TIME("client_network_time", new Stat[]{Stat.CLIENT_NETWORK_TIME}),
+		//search
+		HIT_RATIO("precision", new Stat[]{Stat.HIT_RATIO}),
+		SCORE("score", new Stat[]{Stat.AVERAGE_SCORE});
+
+
 		private String aUserString;
 		private Stat[] aStat;
 		private Unit[] aUnit;
 
-		GraphOption(boolean isValidX, String userString, Stat[] stat) {
-			aIsValidX = isValidX;
+		GraphOption(String userString, Stat[] stat) {
 			aUserString = userString;
 			aStat = stat;
 			aUnit = new Unit[aStat.length];
 			for(int i = 0; i < aStat.length; i++)
 				aUnit[i] = aStat[i].getDefaultUnit();
+		}
+
+		protected String getUserString() {
+			return aUserString;
 		}
 
 		protected double getStatValue(DataSerie ds) {
@@ -120,12 +139,10 @@ public class GNUPlot {
 		}
 
 		protected String getXLabel() {
-			if(this == OPS)
-				return OPS_X_LABEL;
-			else if(this == THREADS)
+			if(this == THREADS)
 				return THREADS_X_LABEL;
 			else
-				return null;
+				return OPS_X_LABEL;
 		}
 
 		protected static GraphOption getGraphOption(String option) {
@@ -141,19 +158,30 @@ public class GNUPlot {
 			return op;
 		}
 
+		protected String getUnits() {
+			return 2 == aUnit.length ? aUnit[0].getId()+"/"+aUnit[1].getId() : ""+aUnit[0].getId();
+		}
+
+		protected String getStatsKey() {
+			return 2 == aStat.length ? aStat[0].getKey()+"/"+aStat[1].getKey() :
+				""+aStat[0].getKey();
+		}
+
 		protected boolean setUnits(String units) {
 			String[] unitsSplit = units.split(UNIT_SPLIT);
 			if(unitsSplit.length != aStat.length)
 				return false; 
 			int i = 0;
+			Unit[] tmp = new Unit[aUnit.length];
 			for(String unit: unitsSplit){
 				if(1 < unit.length())
 					return false;
 				Unit u = Unit.getUnit(unit.charAt(0));
 				if(null == u)
 					return false;
-				aUnit[i++] = u;
+				tmp[i++] = u;
 			}
+			aUnit = tmp;
 			return true;
 		}
 
@@ -180,44 +208,50 @@ public class GNUPlot {
 	}
 
 	private String aGraphOps;
-	private String aTitle;
-	private String aXLabel;
-	private String aYLabel;
 	private String aFormat;
-	private String aFileName;
 	private String aInputName;
 	private String aScriptName;
-	private String aSerieName;
+	private StringBuffer aFileName;
+	private StringBuffer aSerieName;
+	private StringBuffer aTitle;
+	private StringBuffer aXLabel;
+	private StringBuffer aYLabel;
 	private File aOutputDir;
 	private File aExtraInputDir;
-	private boolean aOpsTime;
+	private boolean aCreateLines;
 	private List<DataSerie> aDataSeries;
 	private List<String> aExtras;
 	private GraphOption aYStat;
+	private GraphOption[] aXStat;
 	private GraphOption aSeries;
 
 	public GNUPlot(String graphOps, List<DataSerie> dataSeries) {
 		aGraphOps = graphOps;
-		aTitle = DEFAULT_GRAPH_TITLE;
-		aXLabel = DEFAULT_X_LABEL;
-		aYLabel = DEFAULT_Y_LABEL;
 		aFormat = DEFAULT_FORMAT;
-		aFileName = DEFAULT_OUT_FILENAME;
 		long time = System.currentTimeMillis();
 		aInputName = String.format(DATASET_FILE_FORMAT, ""+time);
 		aScriptName = String.format(SCRIPT_FILE_FORMAT, ""+time);
-		aSerieName = null;
+		aFileName = new StringBuffer();
+		aSerieName = new StringBuffer();
+		aTitle = new StringBuffer();
+		aXLabel = new StringBuffer();
+		aYLabel = new StringBuffer();
 		aOutputDir = new File(DEFAULT_DIR);
 		aExtraInputDir = new File(DEFAULT_DIR);
-		aOpsTime = false;
+		aCreateLines = false;
 		aDataSeries = dataSeries;
 		aExtras = new LinkedList<String>();
 		aYStat = null;
+		aXStat = null;
 		aSeries = null;
 	}
 
 	public void execute() throws IOException, ScriptErrorException {
 		parseOptions();
+		String units = aYStat.getUnits();
+		for(GraphOption op: aXStat){
+			op.setUnits(units);
+		}
 		SortedMap<String,SortedSet<DataSerie>> data = createDataTable();
 		String error = writeScript(data.get(LABELS_LABEL).size()+1);
 		writeDataset(data, error);
@@ -225,10 +259,10 @@ public class GNUPlot {
 			createGraph();
 	}
 
-	private SortedMap<String, SortedSet<DataSerie>> createDataTable() {
+	private SortedMap<String, SortedSet<DataSerie>> createDataTable() throws ScriptErrorException {
 		SortedMap<String,SortedSet<DataSerie>> data = new TreeMap<String, SortedSet<DataSerie>>(
 			new Comparator<String>(){
-			//this will compare serie labels to make up the columns
+			//this will compare serie labels to make up the lines
 			public int compare(String o1, String o2) {
 				if(null == o1 && null == o2)
 					return 0;
@@ -248,7 +282,20 @@ public class GNUPlot {
 					return o1.compareTo(o2);
 			}
 		});
-		//iterate over all dataseries, make up columns as needed
+		//create all lines if they are already known
+		for(int i = 0; i < aXStat.length; i++){
+			//X axis will have the number of threads or operations profile, create lines later
+			if(aXStat[i] == GraphOption.THREADS || aXStat[i] == GraphOption.OPS){
+				if(aXStat.length ==  1){
+					aCreateLines = true;
+					break;
+				}
+				else{
+					throw new ScriptErrorException(INVALID_EXTRA_X_AXIS);
+				}
+			}
+			data.put(aXStat[i].getUserString(), createNewLine());
+		}
 		for(DataSerie ds: aDataSeries){
 			//get first line and add serie label if required
 			SortedSet<DataSerie> seriesLabels = data.get(LABELS_LABEL);
@@ -257,20 +304,29 @@ public class GNUPlot {
 				data.put(LABELS_LABEL, seriesLabels);
 			}
 			seriesLabels.add(ds);
-			//get correct line and data point to it
-			String key = UNDEFINED_LABEL;
-			if(aXLabel.equalsIgnoreCase(THREADS_X_LABEL)){
-				key = String.format("%.0f",ds.getStat(Stat.TOTAL_THREADS));
+			if(aCreateLines){
+				//get correct line
+				String key = UNDEFINED_LABEL;
+				String xLabel = aXLabel.toString(); 
+				if(xLabel.equalsIgnoreCase(THREADS_X_LABEL)){
+					key = String.format("%.0f",ds.getStat(Stat.TOTAL_THREADS));
+				}
+				else if(xLabel.equalsIgnoreCase(OPS_X_LABEL)){
+					key = ds.getTitle();
+				}
+				SortedSet<DataSerie> serie = data.get(key);
+				if(null == serie){
+					serie = createNewLine();
+					data.put(key, serie);
+				}
+				serie.add(ds);
 			}
-			else if(aXLabel.equalsIgnoreCase(OPS_X_LABEL)){
-				key = ds.getTitle();
+			else{
+				//iterate over all lines and put the dataserie in it
+				for(GraphOption x: aXStat){
+					data.get(x.getUserString()).add(ds);
+				}
 			}
-			SortedSet<DataSerie> serie = data.get(key);
-			if(null == serie){
-				serie = createNewLine();
-				data.put(key, serie);
-			}
-			serie.add(ds);
 		}
 		return data;
 	}
@@ -302,33 +358,69 @@ public class GNUPlot {
 
 	private void parseOptions() throws ScriptErrorException {
 		String[] rawOptions = aGraphOps.split(TestSetGenerator.POST_PROCESS_SEPARATOR);
-		StringBuffer titleBuffer = new StringBuffer();
-		boolean title = false;
+		StringBuffer stringBuffer = new StringBuffer();
+		boolean string = false;
 		for(String option: rawOptions){
-			if(title){
-				if(!processTitle(option, titleBuffer)){
-					title = false;
-					aTitle = titleBuffer.toString();
-				}
+			if(string){
+				int r = processString(option, stringBuffer);
+				if(0 == r)
+					string = false;
+				else if(-1 == r)
+					throw new ScriptErrorException(MISSING_CLOSING_MARK);
 				continue;
 			}
 			String[] opValues = option.split(KEYWORD_VALUE_SPLIT);
 			if(1 == opValues.length)
 				throw new ScriptErrorException(String.format(TestSetGenerator.ARG_ERROR, option));
 			if(opValues[0].equalsIgnoreCase(TITLE)){
-				if(opValues[1].startsWith(TITLE_DELIMITER)){
-					title = true;
-					titleBuffer.append(opValues[1].substring(1, opValues[1].length()));
+				if(opValues[1].startsWith(""+STRING_DELIMITER)){
+					string = true;
+					stringBuffer = aTitle;
+					stringBuffer.append(opValues[1].substring(1, opValues[1].length()));
 				}
 				else{
-					aTitle = opValues[1];
+					aTitle.append(opValues[1]);
 				}
 			}
 			else if(opValues[0].equalsIgnoreCase(SERIE_NAME)){
-				aSerieName = opValues[1];
+				if(opValues[1].startsWith(""+STRING_DELIMITER)){
+					string = true;
+					stringBuffer = aSerieName;
+					stringBuffer.append(opValues[1].substring(1, opValues[1].length()));
+				}
+				else{
+					aSerieName.append(opValues[1]);
+				}
 			}
 			else if(opValues[0].equalsIgnoreCase(OUTPUT_FILE)){
-				aFileName = opValues[1];
+				if(opValues[1].startsWith(""+STRING_DELIMITER)){
+					string = true;
+					stringBuffer = aFileName;
+					stringBuffer.append(opValues[1].substring(1, opValues[1].length()));
+				}
+				else{
+					aFileName.append(opValues[1]);
+				}
+			}
+			else if(opValues[0].equalsIgnoreCase(X_LABEL)){
+				if(opValues[1].startsWith(""+STRING_DELIMITER)){
+					string = true;
+					stringBuffer = aXLabel;
+					stringBuffer.append(opValues[1].substring(1, opValues[1].length()));
+				}
+				else{
+					aXLabel.append(opValues[1]);
+				}
+			}
+			else if(opValues[0].equalsIgnoreCase(Y_LABEL)){
+				if(opValues[1].startsWith(""+STRING_DELIMITER)){
+					string = true;
+					stringBuffer = aYLabel;
+					stringBuffer.append(opValues[1].substring(1, opValues[1].length()));
+				}
+				else{
+					aYLabel.append(opValues[1]);
+				}
 			}
 			else if(opValues[0].equalsIgnoreCase(OUTPUT_DIR)){
 				File outdir = new File(opValues[1]);
@@ -347,15 +439,15 @@ public class GNUPlot {
 				aExtras.add(opValues[1]);
 			}
 			else if(opValues[0].equalsIgnoreCase(X_AXIS)){
-				GraphOption xOp = GraphOption.getGraphOption(opValues[1]);
-				if(null == xOp){
-					throw new ScriptErrorException(String.format(TestSetGenerator.INVALID_ARGUMENT,
-						option));
-				}
-				aXLabel = xOp.getXLabel();
-				if(null == aXLabel){
-					throw new ScriptErrorException(String.format(TestSetGenerator.INVALID_ARGUMENT,
-						option));
+				String[] xAxisOptions = opValues[1].split(VALUES_SPLIT);
+				aXStat = new GraphOption[xAxisOptions.length];
+				for(int i = 0; i < xAxisOptions.length; i++){
+					GraphOption xOp = GraphOption.getGraphOption(xAxisOptions[i]);
+					if(null == xOp){
+						throw new ScriptErrorException(String.format(TestSetGenerator.INVALID_ARGUMENT,
+							option));
+					}
+					aXStat[i] = xOp;
 				}
 			}
 			else if(opValues[0].equalsIgnoreCase(SERIES)){
@@ -366,7 +458,7 @@ public class GNUPlot {
 				}
 			}
 			else if(opValues[0].equalsIgnoreCase(Y_AXIS)){
-				String[] yAxisOptions = opValues[1].split(VALUE_SPLIT);
+				String[] yAxisOptions = opValues[1].split(VALUE_UNIT_SPLIT);
 				if(2 < yAxisOptions.length)
 					throw new ScriptErrorException(String.format(TestSetGenerator.INVALID_ARGUMENT,
 						option));
@@ -380,16 +472,12 @@ public class GNUPlot {
 							TestSetGenerator.INVALID_ARGUMENT, option));
 				}
 				aYStat = yOp;
-				aYLabel = yOp.toString();
+				aYLabel.append(yOp.toString());
 			}
 		}
-		if(title){
+		if(string){
 			throw new ScriptErrorException(MISSING_CLOSING_MARK);
 		}
-	}
-
-	private boolean processTitle(String word) {
-		return false;
 	}
 
 	private void writeDataset(SortedMap<String,SortedSet<DataSerie>> data, String error)
@@ -398,32 +486,59 @@ public class GNUPlot {
 		if(null != error){
 			buffer.append(GNUPLOT_COMMENT+" "+error+"\n");
 		}
+		boolean writeHeader = 2 < data.get(LABELS_LABEL).size()+1 || !aExtras.isEmpty() ? 
+			true : false;
 		for(String xTic: data.keySet()){
-			buffer.append(xTic);
+			GraphOption keyStat = null;
+			boolean writen = false;
+			if(xTic.equalsIgnoreCase(LABELS_LABEL)){
+				if(writeHeader){
+					writen = true;
+					buffer.append("\""+LABELS_LABEL+"\"");
+				}
+			}
+			else if(aCreateLines){
+				writen = true;
+				keyStat = aYStat;
+				buffer.append("\""+xTic+"\"");
+			}
+			else{
+				writen = true;
+				keyStat = GraphOption.getGraphOption(xTic);
+				buffer.append("\""+keyStat.getStatsKey()+"\"");
+			}
 			SortedSet<DataSerie> dataPoints = data.get(xTic);
 			for(DataSerie ds: dataPoints){
-				buffer.append("\t");
+				if(writen)
+					buffer.append("\t");
+				writen = false;
 				String value = null;
 				if(xTic.equalsIgnoreCase(LABELS_LABEL)){
-					if(null != aSerieName){
-						value = aSerieName;
-					}
-					else if(aSeries == GraphOption.THREADS){
-						value = String.format("%.0f", ds.getStat(Stat.TOTAL_THREADS));
-					}
-					else if(aSeries == GraphOption.OPS){
-						value = ds.getTitle();
-					}
-					else{
-						value = ds.getTitle();	
+					if(writeHeader){
+						if(0 < aSerieName.length()){
+							value = aSerieName.toString();
+						}
+						else if(aSeries == GraphOption.THREADS){
+							value = String.format("%.0f", ds.getStat(Stat.TOTAL_THREADS));
+						}
+						else if(aSeries == GraphOption.OPS){
+							value = ds.getTitle();
+						}
+						else{
+							value = ds.getTitle();	
+						}
 					}
 				}
 				else{
-					value = ""+aYStat.getStatValue(ds);
+					value = ""+keyStat.getStatValue(ds);
 				}
-				buffer.append(value);
+				if(null != value){
+					writen = true;
+					buffer.append(value);
+				}
 			}
-			buffer.append("\n");
+			if(writen)
+				buffer.append("\n");
 		}
 		PrintWriter writer = new PrintWriter(new File(aOutputDir, aInputName));
 		writer.print(buffer.toString());
@@ -433,7 +548,7 @@ public class GNUPlot {
 	private String writeScript(int nColumns) throws IOException {
 		aScriptName = String.format(SCRIPT_FILE_FORMAT, aFileName);
 		aInputName = String.format(DATASET_FILE_FORMAT, aFileName);
-		String outputFile = new File(aOutputDir, aFileName).toString();
+		String outputFile = new File(aOutputDir, aFileName.toString()).toString();
 		String inputData = new File(aOutputDir, aInputName).toString();
 		StringBuffer buffer = new StringBuffer();
 		String legend = 2 < nColumns || !aExtras.isEmpty() ? LEGEND_ON : LEGEND_OFF;
@@ -472,14 +587,31 @@ public class GNUPlot {
 		}
 	}
 
-	private boolean processTitle(String word, StringBuffer buffer) {
-		if(!word.endsWith(TITLE_DELIMITER)){
+	private int processString(String word, StringBuffer buffer) {
+		int index = word.indexOf(STRING_DELIMITER);
+		if(-1 == index){
 			buffer.append(" "+word);
-			return true;
+			return 1;
 		}
 		else{
-			buffer.append(" "+word.substring(0, word.length()-1));
-			return false;
+			int n = 0;
+			int i = index-1;
+			while(0 <= i && STRING_DELIMITER_ESCAPE == word.charAt(i--))
+				n++;
+			if(0 == n%2){
+				//delimiter is not escaped
+				if(word.length()-1 == index){
+					buffer.append(" "+word.substring(0, word.length()-1));
+					return 0;
+				}
+				else
+					return -1;
+			}
+			else{
+				//ignore delimiter
+				buffer.append(" "+word);
+				return 1;
+			}
 		}
 	}
 }

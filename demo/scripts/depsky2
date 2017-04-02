@@ -1,0 +1,6 @@
+ip=localhost
+threads=1
+path=/datasets
+mode=explicit
+ops=add 0 99; loop 5
+output=graph title:"Depsky and Ramcloud Comparision" x:client_index_time,feature_extraction,encryption_time,client_network_time,time y:time outdir:/output outfile:depsky2 extradir:/output extra:ramcloud2.dat seriename:Depsky

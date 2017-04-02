@@ -46,6 +46,7 @@ public class TestSet {
 	public static final String NO_WIPE = "nowipe";
 	public static final String WIPE = "wipe";
 	public static final String TITLE = "title";
+	public static final String LOOP = "loop";
 	//command args
 	private static final String INDEX_WAIT_SHORT = "w";
 	private static final String INDEX_WAIT_LONG = "wait";
@@ -76,7 +77,6 @@ public class TestSet {
 	private String aIp;
 	private String aMode;
 	private String aOpsSequence;
-	private String aStats;
 	private String aCache;
 	private String aTitle;
 	private File aDatasetDir;
@@ -92,13 +92,14 @@ public class TestSet {
 	private boolean aOutput;
 	private SearchStats aSearchStats;
 	private Monitor aMonitor;
+	private DataPoint[] aSeries;
+	private DataSerie aStats;
 
 	public TestSet(String ip, String mode, File datasetDir, String ops, int threads, String cache,
 		boolean output) {
 		aIp = ip;
 		aMode = mode;
 		aOpsSequence = ops;
-		aStats = "";
 		aCache = cache;
 		aTitle = ops;
 		aDatasetDir = datasetDir;
@@ -114,6 +115,8 @@ public class TestSet {
 		aIndexWait = false;
 		aSearchStats = new SearchStats();
 		aMonitor = new Monitor(aNThreads);
+		aSeries = new DataPoint[1];
+		aStats = null;
 	}
 
 	public DataSerie execute() throws IOException, ScriptErrorException {
@@ -142,23 +145,30 @@ public class TestSet {
 			e.printStackTrace();
 			return null;
 		}
-		if(aMode.equalsIgnoreCase(TestSetGenerator.EXPLICIT_MODE)){
-			runExplicit(clientCache);
+		for(int i = 0; i < aSeries.length; i++){
+			System.out.println("Running "+aTitle+" "+(i+1)+" of "+aSeries.length);
+			if(aMode.equalsIgnoreCase(TestSetGenerator.EXPLICIT_MODE)){
+				runExplicit(clientCache);
+			}
+			else if(aMode.equalsIgnoreCase(TestSetGenerator.DESCRIPTIVE_MODE)){
+				runDescriptive(clientCache);
+			}
+			else{
+				throw new ScriptErrorException(String.format(UNRECOGNIZED_MODE, aMode));
+			}
+			if(aOutput)
+				aSeries[i] = stats(client);
+			if(aSeries.length-1 != i || aWipe){
+				System.out.println("Resetting server");
+				client.wipe();
+			}
+			aBytesDownload = 0;
+			aBytesUpload = 0;
+			aBytesSearch = 0;
+			aNOperations = 0;
 		}
-		else if(aMode.equalsIgnoreCase(TestSetGenerator.DESCRIPTIVE_MODE)){
-			runDescriptive(clientCache);
-		}
-		else{
-			throw new ScriptErrorException(String.format(UNRECOGNIZED_MODE, aMode));
-		}
-		DataSerie ds = null;
-		if(aOutput)
-			ds = stats(client);
-		if(aWipe){
-			System.out.println("Resetting server");
-			client.wipe();
-		}
-		return ds;
+		aStats = new DataSerie(aTitle, aSeries);
+		return aStats;
 	}
 
 	public String dump() {
@@ -175,52 +185,50 @@ public class TestSet {
 
 	@Override
 	public String toString() {
-		return aStats;
-	}
-
-	private DataSerie stats(MIE client) {
-
 		StringBuffer serverSide = new StringBuffer();
-		Map<String,String> stats = client.printServerStatistics();
-
-		DataSerie ds = new DataSerie(aNThreads, aNOperations, aBytesUpload, aBytesSearch,
-			aBytesDownload, TimeSpec.getIndexTime(), TimeSpec.getFeatureTime(),
-			TimeSpec.getEncryptionTime(),TimeSpec.getEncryptionSymmetricTime(),
-			TimeSpec.getEncryptionCbirTime(), TimeSpec.getEncryptionMiscTime(),
-			client.getNetworkTime(), aMonitor.getTotalTime(), aIndexWait, stats, aSearchStats,
-			client.getCacheHitRatio(), aTitle);
-
-		for(DataSerie.Stat t: DataSerie.Stat.values()){
+		for(DataPoint.Stat t: DataPoint.Stat.values()){
 			if(!t.isClientTime()){
-				serverSide.append(String.format("%s: %s\n", t.getKey(), ds.getStat(t)));
+				serverSide.append(String.format("%s: %.6f\n", t.getKey(), aStats.getStat(t)));
 			}
 		}
 
 		String others = String.format("CBIR encryption: %f\nSymmetric encryption: %f\nMisc: %f\n"+
 			"Client Cache Hit Ratio: %.6f\n",
-			ds.getStat(DataSerie.Stat.ENCRYPTION_CBIR),
-			ds.getStat(DataSerie.Stat.ENCRYPTION_SYMMETRIC),
-			ds.getStat(DataSerie.Stat.ENCRYPTION_MISC),
-			ds.getStat(DataSerie.Stat.CLIENT_HIT_RATIO));
+			aStats.getStat(DataPoint.Stat.ENCRYPTION_CBIR),
+			aStats.getStat(DataPoint.Stat.ENCRYPTION_SYMMETRIC),
+			aStats.getStat(DataPoint.Stat.ENCRYPTION_MISC),
+			aStats.getStat(DataPoint.Stat.CLIENT_HIT_RATIO));
 
 		String clientSide = String.format(
 				"featureTime: %.6f indexTime: %.6f cryptoTime: %.6f cloudTime: %.6f Total time: %.6f\n"+
 				"Throughput:\nTotal Bytes uploaded: %.0f Total Bytes searched: %.0f Total Bytes "+
 				"downloaded: %.0f\nBytes uploaded/s: %.6f Bytes searched/s: %.6f Bytes downloaded/s:"+
 				" %.6f\nTotal operations: %.0f Operations/s: %.6f",
-				ds.getStat(DataSerie.Stat.FEATURE_EXTRACTION),
-				ds.getStat(DataSerie.Stat.CLIENT_INDEX),
-				ds.getStat(DataSerie.Stat.ENCRYPTION_TOTAL),
-				ds.getStat(DataSerie.Stat.CLIENT_NETWORK_TIME),
-				ds.getStat(DataSerie.Stat.TOTAL_TIME), ds.getStat(DataSerie.Stat.UPLOAD),
-				ds.getStat(DataSerie.Stat.SEARCH),
-				ds.getStat(DataSerie.Stat.DOWNLOAD),
-				ds.getStat(DataSerie.Stat.UPLOAD)/ds.getStat(DataSerie.Stat.TOTAL_TIME),
-				ds.getStat(DataSerie.Stat.SEARCH)/ds.getStat(DataSerie.Stat.TOTAL_TIME),
-				ds.getStat(DataSerie.Stat.DOWNLOAD)/ds.getStat(DataSerie.Stat.TOTAL_TIME),
-				ds.getStat(DataSerie.Stat.TOTAL_OPERATIONS),
-				ds.getStat(DataSerie.Stat.TOTAL_OPERATIONS)/ds.getStat(DataSerie.Stat.TOTAL_TIME));
-		aStats = aTitle+"\n"+serverSide.toString() + others + clientSide;
+				aStats.getStat(DataPoint.Stat.FEATURE_EXTRACTION),
+				aStats.getStat(DataPoint.Stat.CLIENT_INDEX),
+				aStats.getStat(DataPoint.Stat.ENCRYPTION_TOTAL),
+				aStats.getStat(DataPoint.Stat.CLIENT_NETWORK_TIME),
+				aStats.getStat(DataPoint.Stat.TOTAL_TIME), aStats.getStat(DataPoint.Stat.UPLOAD),
+				aStats.getStat(DataPoint.Stat.SEARCH),
+				aStats.getStat(DataPoint.Stat.DOWNLOAD),
+				aStats.getStat(DataPoint.Stat.UPLOAD)/aStats.getStat(DataPoint.Stat.TOTAL_TIME),
+				aStats.getStat(DataPoint.Stat.SEARCH)/aStats.getStat(DataPoint.Stat.TOTAL_TIME),
+				aStats.getStat(DataPoint.Stat.DOWNLOAD)/aStats.getStat(DataPoint.Stat.TOTAL_TIME),
+				aStats.getStat(DataPoint.Stat.TOTAL_OPERATIONS),
+				aStats.getStat(DataPoint.Stat.TOTAL_OPERATIONS)/aStats.getStat(DataPoint.Stat.TOTAL_TIME));
+		return serverSide.toString() + others + clientSide;
+	}
+
+	private DataPoint stats(MIE client) {
+
+		Map<String,String> stats = client.printServerStatistics();
+
+		DataPoint ds = new DataPoint(aNThreads, aNOperations, aBytesUpload, aBytesSearch,
+			aBytesDownload, TimeSpec.getIndexTime(), TimeSpec.getFeatureTime(),
+			TimeSpec.getEncryptionTime(),TimeSpec.getEncryptionSymmetricTime(),
+			TimeSpec.getEncryptionCbirTime(), TimeSpec.getEncryptionMiscTime(),
+			client.getNetworkTime(), aMonitor.getTotalTime(), aIndexWait, stats, aSearchStats,
+			client.getCacheHitRatio(), aTitle);
 		return ds;
 	}
 
@@ -236,7 +244,8 @@ public class TestSet {
 				   args[0].equalsIgnoreCase(GET)||args[0].equalsIgnoreCase(GET_MIME)||
 				   args[0].equalsIgnoreCase(SEARCH)||args[0].equalsIgnoreCase(SEARCH_MIME)||
 				   args[0].equalsIgnoreCase(BASE)||args[0].equalsIgnoreCase(OPERATIONS)||
-				   args[0].equalsIgnoreCase(WAIT)||args[0].equalsIgnoreCase(TITLE)){
+				   args[0].equalsIgnoreCase(WAIT)||args[0].equalsIgnoreCase(TITLE)||
+				   args[0].equalsIgnoreCase(LOOP)){
 					throw new ScriptErrorException(String.format(ARG_ERROR, FEW_ERROR, s));
 				}
 				else if(args[0].equalsIgnoreCase(INDEX)||args[0].equalsIgnoreCase(RESET)||
@@ -259,8 +268,7 @@ public class TestSet {
 			else{
 				if(args[0].equalsIgnoreCase(ADD)||args[0].equalsIgnoreCase(ADD_MIME)||
 				   args[0].equalsIgnoreCase(GET)||args[0].equalsIgnoreCase(GET_MIME)||
-				   args[0].equalsIgnoreCase(SEARCH)||args[0].equalsIgnoreCase(SEARCH_MIME)||
-				   args[0].equalsIgnoreCase(BASE)){
+				   args[0].equalsIgnoreCase(SEARCH)||args[0].equalsIgnoreCase(SEARCH_MIME)){
 					if(4 < args.length){
 						throw new ScriptErrorException(String.format(ARG_ERROR, MANY_ERROR, s));
 					}
@@ -279,25 +287,33 @@ public class TestSet {
 						cArgs[i-1] = args[i];
 					aOperations.add(new Command(args[0], cArgs));
 				}
-				else if(args[0].equalsIgnoreCase(OPERATIONS)||args[0].equalsIgnoreCase(WAIT)){
+				else if(args[0].equalsIgnoreCase(OPERATIONS)||args[0].equalsIgnoreCase(WAIT)||
+					args[0].equalsIgnoreCase(INDEX)||args[0].equalsIgnoreCase(LOOP)||
+					args[0].equalsIgnoreCase(BASE)){
 					if(2 < args.length){
 						throw new ScriptErrorException(String.format(ARG_ERROR, MANY_ERROR, s));
 					}
-					else{
+					else if(args[0].equalsIgnoreCase(OPERATIONS)||args[0].equalsIgnoreCase(WAIT)||
+						args[0].equalsIgnoreCase(BASE)){
 						aOperations.add(new Command(args[0], new String[]{args[1]}));
 					}
-				}
-				else if(args[0].equalsIgnoreCase(INDEX)){
-					if(2 < args.length){
-						throw new ScriptErrorException(String.format(ARG_ERROR, MANY_ERROR, s));
+					else if(args[0].equalsIgnoreCase(INDEX)){
+						if(args[1].equalsIgnoreCase(INDEX_WAIT_SHORT)||
+							args[1].equalsIgnoreCase(INDEX_WAIT_LONG)){
+							aOperations.add(new Command(args[0], new String[]{args[1]}));
+							aIndexWait = true;
+						}
+						else{
+							throw new ScriptErrorException(String.format(INVALID_ARGUMENT, s));
+						}	
 					}
-					if(args[1].equalsIgnoreCase(INDEX_WAIT_SHORT)||
-						args[1].equalsIgnoreCase(INDEX_WAIT_LONG)){
-						aOperations.add(new Command(args[0], new String[]{args[1]}));
-						aIndexWait = true;
-					}
-					else{
-						throw new ScriptErrorException(String.format(INVALID_ARGUMENT, s));
+					else if(args[0].equalsIgnoreCase(LOOP)){
+						try{
+							aSeries = new DataPoint[Integer.parseInt(args[1])];
+						}
+						catch(NumberFormatException e){
+							throw new ScriptErrorException(String.format(INVALID_ARGUMENT, s));
+						}
 					}
 				}
 				else if(args[0].equalsIgnoreCase(TITLE)){
@@ -353,7 +369,7 @@ public class TestSet {
 			aSearchStats.merge(threads[i].getSearchStats());
 		}
 		if(aSearchStats.hasData())
-			System.out.println(aSearchStats.toString());
+			System.out.println(aSearchStats);
 	}
 
 	private void runCompare() {
@@ -710,9 +726,6 @@ public class TestSet {
 			for(Integer i: toAdd){
 				mie.getUnstructuredDoc(i+"", true);
 			}
-			mie.clearServerTimes();
-			mie.clearCache();
-			TimeSpec.reset();
 		}
 		else{
 			int n = toAdd.size();
@@ -722,9 +735,8 @@ public class TestSet {
 				mie.getUnstructuredDoc(intg[i]+"", true);
 			}
 		}
-		mie.clearServerTimes();
+		mie.clearTimes();
 		mie.clearCache();
-		TimeSpec.reset();
 	}
 
 	public static int[] getIds(int min, int max, int length){

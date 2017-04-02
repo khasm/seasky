@@ -165,7 +165,7 @@ public class ClientThread extends Thread {
 				}
 				else if(op.equalsIgnoreCase(TestSet.CLEAR)){
 					if(monitor.canExecute(nextSingleOp++)){
-						mie.clearServerTimes();
+						mie.clearTimes();
 					}
 				}
 				else if(op.equalsIgnoreCase(TestSet.WAIT)){

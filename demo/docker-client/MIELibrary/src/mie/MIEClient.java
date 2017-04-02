@@ -26,6 +26,8 @@ import com.sun.mail.util.BASE64DecoderStream;
 
 import java.io.FileOutputStream;
 
+import mie.crypto.TimeSpec;
+
 
 public class MIEClient implements MIE {
 	
@@ -74,6 +76,12 @@ public class MIEClient implements MIE {
 
 	@Override
 	public boolean wipe() {
+		synchronized(networkTimeLock){
+			networkTime = 0;
+		}
+		TimeSpec.reset();
+		cache.clear();
+		cache.resetStats();
 		return server.wipe();
 	}
 	
@@ -336,9 +344,13 @@ public class MIEClient implements MIE {
 	}
 
 	@Override
-	public boolean clearServerTimes() {
+	public boolean clearTimes() {
 		boolean ret = server.clearTimes();
 		cache.resetStats();
+		synchronized(networkTimeLock){
+			networkTime = 0;
+		}
+		TimeSpec.reset();
 		return ret;
 	}
 
