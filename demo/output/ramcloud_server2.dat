@@ -1,0 +1,16 @@
+# Problem reading extra input file output2/depsky_server2.dat
+"v"		Ramcloud
+"Network add time"	1.4948006	0.08487543068662452
+"Network download time"	0.0084946	0.0169892
+"Network feature time"	0.0	0.0
+"Network get time"	0.0	0.0
+"Network index time"	3.376E-4	6.752000000000001E-4
+"Network parallel add"	1.4948006	0.08487543068662452
+"Network parallel download"	0.0084946	0.0169892
+"Network parallel get"	0.0	0.0
+"Network parallel upload"	1.0781298000000001	0.08474260679587337
+"Network upload time"	1.0781298000000001	0.08474260679587337
+"Search time"	0.0	0.0
+"Index time"	0.0	0.0
+"Network time"	1.4951382	0.08474082001113752
+"Train time"	0.0020352	0.0040704

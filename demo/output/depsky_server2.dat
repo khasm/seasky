@@ -1,0 +1,15 @@
+"v"		Depsky
+"Network add time"	151.9888372	25.108868392469997
+"Network download time"	0.0594812	0.11896240000000001
+"Network feature time"	0.0	0.0
+"Network get time"	0.0	0.0
+"Network index time"	0.018376999999999998	0.036753999999999995
+"Network parallel add"	28.36435	0.17318874435366763
+"Network parallel download"	0.0594812	0.11896240000000001
+"Network parallel get"	0.0	0.0
+"Network parallel upload"	28.2301106	0.10949840496482148
+"Network upload time"	28.2301106	0.10949840496482148
+"Search time"	0.0	0.0
+"Index time"	0.0	0.0
+"Network time"	28.382727	0.20841352600251192
+"Train time"	0.0184274	0.0368548

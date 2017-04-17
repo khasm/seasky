@@ -17,14 +17,18 @@ public class DataSerie {
 		return aTitle;
 	}
 
-	public double getStat(DataPoint.Stat stat) {
-		return getStat(stat, stat.getDefaultUnit());
+	public double getStat(DataPoint.Stat[] stat) {
+		DataPoint.Unit[] units = new DataPoint.Unit[stat.length];
+		for(int i = 0; i < stat.length; i++)
+			units[i] = stat[i].getDefaultUnit();
+		return getStat(stat, units);
 	}
 
-	public double getStat(DataPoint.Stat stat, DataPoint.Unit prefix) {
+	public double getStat(DataPoint.Stat[] stat, DataPoint.Unit[] prefix) {
 		double average = 0;
 		for(DataPoint dp: aPoints){
-			average += dp.getStat(stat, prefix);
+			average += stat.length == 1 ? dp.getStat(stat[0], prefix[0])
+				: dp.getStat(stat[0], prefix[0])/dp.getStat(stat[1], prefix[1]);
 		}
 		return average/aPoints.length;
 	}
@@ -41,6 +45,23 @@ public class DataSerie {
 				max = value;
 		}
 		return max;
+	}
+
+	public double getStandardDeviation(DataPoint.Stat[] stat) {
+		DataPoint.Unit[] units = new DataPoint.Unit[stat.length];
+		for(int i = 0; i < stat.length; i++)
+			units[i] = stat[i].getDefaultUnit();
+		return getStandardDeviation(stat, units);
+	}
+
+	public double getStandardDeviation(DataPoint.Stat[] stat, DataPoint.Unit[] prefix) {
+		double average = getStat(stat, prefix);
+		double tmpDeviation = 0;
+		for(DataPoint dp: aPoints){
+			tmpDeviation += Math.pow((stat.length == 1 ? dp.getStat(stat[0], prefix[0])
+				: dp.getStat(stat[0], prefix[0])/dp.getStat(stat[1], prefix[1])) - average, 2);
+		}
+		return Math.sqrt(tmpDeviation/aPoints.length);
 	}
 
 	public double getStatMin(DataPoint.Stat stat) {

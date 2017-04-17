@@ -3,4 +3,5 @@ threads=1
 path=/datasets
 mode=explicit
 ops=add 0 99; loop 5
-output=graph title:"Depsky and Ramcloud Comparision" x:client_index_time,feature_extraction,encryption_time,client_network_time,time y:time outdir:/output outfile:depsky2 extradir:/output extra:ramcloud2.dat seriename:Depsky
+output=graph title:"Depsky and Ramcloud Client Times Comparision" x:client_index_time,feature_extraction,encryption_time,client_network_time,time y:time outdir:/output outfile:depsky_client2 extradir:/output extra:ramcloud_client2.dat seriename:Depsky
+output=graph title:"Depsky and Ramcloud Server Times Comparision" x:server_index_time,train_time,search_time,server_network_time,network_feature_time,network_index_time,network_add_time,network_get_time,network_parallel_add,network_parallel_get,network_upload_time,network_download_time,network_parallel_upload,network_parallel_download y:time outdir:/output outfile:depsky_server2 extradir:/output extra:ramcloud_server2.dat seriename:Depsky

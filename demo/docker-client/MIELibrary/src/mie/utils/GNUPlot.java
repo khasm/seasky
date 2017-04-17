@@ -29,24 +29,26 @@ public class GNUPlot {
 		"set datafile commentschars '%s'\n"+
 		"set title '%s'\n"+
 		"set style data histogram\n"+
-		"set style histogram cluster gap 1\n"+
+		"set bars fullwidth\n"+
+		"set style histogram errorbars gap 1\n"+
 		"set style fill solid border -1\n"+
 		"set offsets graph 0, 0, 0.05, 0.05\n"+
 		"%s\n"+
 		"set xlabel '%s'\n"+
 		"set xtics rotate by -45\n"+
 		"set ylabel '%s'\n"+
+		"set yrange [0<*:]\n"+
 		"set term %s\n"+
 		"set output '%s.%s'\n"+
-		"plot for [DS=2:%d:1] '%s' using DS:xticlabels(1)";
+		"plot for [DS=2:%d:2] '%s' using DS:DS+1:xticlabels(1)";
 	private static final String LEGEND_ON = 
 		"set key autotitle columnhead\n"+
 		"set key outside";
 	private static final String LEGEND_OFF =
 		"set key off";
 	private static final String EXTRA_DATA_FILE_LINE =
-		", \\\n	 for [DS=2:%d:1] '%s' using "+
-		"DS:xticlabels(1)";
+		", \\\n	 for [DS=2:%d:2] '%s' using "+
+		"DS:DS+1:xticlabels(1)";
 	private static final String GNUPLOT_COMMENT = "#";
 	private static final String DATASET_FILE_FORMAT = "%s.dat";
 	private static final String SCRIPT_FILE_FORMAT = "%s.gnuplot";
@@ -96,6 +98,7 @@ public class GNUPlot {
 		DOWNLOAD_PER_TIME("download/time", new Stat[]{Stat.DOWNLOAD, Stat.TOTAL_TIME}),
 		//times
 		TIME("time", new Stat[]{Stat.TOTAL_TIME}),
+		//client times
 		CLIENT_INDEX("client_index_time", new Stat[]{Stat.CLIENT_INDEX}),
 		FEATURE_EXTRACTION("feature_extraction", new Stat[]{Stat.FEATURE_EXTRACTION}),
 		ENCRYPTION_TOTAL("encryption_time", new Stat[]{Stat.ENCRYPTION_SYMMETRIC}),
@@ -103,6 +106,23 @@ public class GNUPlot {
 		ENCRYPTION_CBIR("cbir_time", new Stat[]{Stat.ENCRYPTION_CBIR}),
 		ENCRYPTION_MISC("misc_time", new Stat[]{Stat.ENCRYPTION_MISC}),
 		CLIENT_NETWORK_TIME("client_network_time", new Stat[]{Stat.CLIENT_NETWORK_TIME}),
+		//server times
+		SERVER_INDEX("server_index_time", new Stat[]{Stat.SERVER_INDEX}),
+		TRAIN_TIME("train_time", new Stat[]{Stat.TRAIN_TIME}),
+		SEARCH_TIME("search_time", new Stat[]{Stat.SEARCH_TIME}),
+		SERVER_NETWORK_TIME("server_network_time", new Stat[]{Stat.SERVER_NETWORK_TIME}),
+		NETWORK_FEATURE_TIME("network_feature_time", new Stat[]{Stat.NETWORK_FEATURE_TIME}),
+		NETWORK_INDEX_TIME("network_index_time", new Stat[]{Stat.NETWORK_INDEX_TIME}),
+		NETWORK_ADD_TIME("network_add_time", new Stat[]{Stat.NETWORK_ADD_TIME}),
+		NETWORK_GET_TIME("network_get_time", new Stat[]{Stat.NETWORK_GET_TIME}),
+		NETWORK_PARALLEL_ADD("network_parallel_add", new Stat[]{Stat.NETWORK_PARALLEL_ADD}),
+		NETWORK_PARALLEL_GET("network_parallel_get", new Stat[]{Stat.NETWORK_PARALLEL_GET}),
+		NETWORK_UPLOAD_TIME("network_upload_time", new Stat[]{Stat.NETWORK_UPLOAD_TIME}),
+		NETWORK_DOWNLOAD_TIME("network_download_time", new Stat[]{Stat.NETWORK_DOWNLOAD_TIME}),
+		NETWORK_PARALLEL_UPLOAD("network_parallel_upload",
+			new Stat[]{Stat.NETWORK_PARALLEL_UPLOAD}),
+		NETWORK_PARALLEL_DOWNLOAD("network_parallel_download",
+			new Stat[]{Stat.NETWORK_PARALLEL_DOWNLOAD}),
 		//search
 		HIT_RATIO("precision", new Stat[]{Stat.HIT_RATIO}),
 		SCORE("score", new Stat[]{Stat.AVERAGE_SCORE});
@@ -125,17 +145,11 @@ public class GNUPlot {
 		}
 
 		protected double getStatValue(DataSerie ds) {
-			double[] values = new double[aStat.length];
-			for(int i = 0; i < values.length; i++){
-				if(null == aUnit[i])
-					values[i] = ds.getStat(aStat[i]);
-				else
-					values[i] = ds.getStat(aStat[i], aUnit[i]);
-			}
-			if(1 == values.length)
-				return values[0];
-			else
-				return values[0]/values[1];
+			return ds.getStat(aStat, aUnit);
+		}
+
+		protected double getStandardDeviation(DataSerie ds) {
+			return ds.getStandardDeviation(aStat, aUnit);
 		}
 
 		protected String getXLabel() {
@@ -159,7 +173,17 @@ public class GNUPlot {
 		}
 
 		protected String getUnits() {
-			return 2 == aUnit.length ? aUnit[0].getId()+"/"+aUnit[1].getId() : ""+aUnit[0].getId();
+			String ret = null;
+			if(2 == aUnit.length){
+				if(null != aUnit[0])
+					ret = aUnit[0].getId()+"/"+aUnit[1].getId();
+				else
+					ret = aStat[0].getKey()+"/"+aUnit[1].getId();
+			}
+			else if(null != aUnit[0]){
+				ret = ""+aUnit[0].getId();
+			}
+			return ret;
 		}
 
 		protected String getStatsKey() {
@@ -168,6 +192,8 @@ public class GNUPlot {
 		}
 
 		protected boolean setUnits(String units) {
+			if(null == units)
+				return true;
 			String[] unitsSplit = units.split(UNIT_SPLIT);
 			if(unitsSplit.length != aStat.length)
 				return false; 
@@ -253,7 +279,7 @@ public class GNUPlot {
 			op.setUnits(units);
 		}
 		SortedMap<String,SortedSet<DataSerie>> data = createDataTable();
-		String error = writeScript(data.get(LABELS_LABEL).size()+1);
+		String error = writeScript(data.get(LABELS_LABEL).size()*2);
 		writeDataset(data, error);
 		if(null == error)
 			createGraph();
@@ -307,11 +333,10 @@ public class GNUPlot {
 			if(aCreateLines){
 				//get correct line
 				String key = UNDEFINED_LABEL;
-				String xLabel = aXLabel.toString(); 
-				if(xLabel.equalsIgnoreCase(THREADS_X_LABEL)){
-					key = String.format("%.0f",ds.getStat(Stat.TOTAL_THREADS));
+				if(aXStat[0] == GraphOption.THREADS){
+					key = String.format("%.0f",ds.getStat(new Stat[]{Stat.TOTAL_THREADS}));
 				}
-				else if(xLabel.equalsIgnoreCase(OPS_X_LABEL)){
+				else if(aXStat[0] == GraphOption.OPS){
 					key = ds.getTitle();
 				}
 				SortedSet<DataSerie> serie = data.get(key);
@@ -344,8 +369,8 @@ public class GNUPlot {
 				String series1 = UNDEFINED_LABEL;
 				String series2 = UNDEFINED_LABEL;
 				if(aSeries == GraphOption.THREADS){
-					series1 = ""+o1.getStat(Stat.TOTAL_THREADS);
-					series2 = ""+o2.getStat(Stat.TOTAL_THREADS);
+					series1 = ""+o1.getStat(new Stat[]{Stat.TOTAL_THREADS});
+					series2 = ""+o2.getStat(new Stat[]{Stat.TOTAL_THREADS});
 				}
 				else if(aSeries == GraphOption.OPS){
 					series1 = o1.getTitle();
@@ -515,22 +540,24 @@ public class GNUPlot {
 				String value = null;
 				if(xTic.equalsIgnoreCase(LABELS_LABEL)){
 					if(writeHeader){
+						buffer.append("\t");
 						if(0 < aSerieName.length()){
 							value = aSerieName.toString();
 						}
 						else if(aSeries == GraphOption.THREADS){
-							value = String.format("%.0f", ds.getStat(Stat.TOTAL_THREADS));
+							value = String.format("%.0f", ds.getStat(
+								new Stat[]{Stat.TOTAL_THREADS}));
 						}
 						else if(aSeries == GraphOption.OPS){
-							value = ds.getTitle();
+							value = "\""+ds.getTitle()+"\"";
 						}
 						else{
-							value = ds.getTitle();	
+							value = "\""+ds.getTitle()+"\"";
 						}
 					}
 				}
 				else{
-					value = ""+keyStat.getStatValue(ds);
+					value = ""+keyStat.getStatValue(ds)+"\t"+keyStat.getStandardDeviation(ds);
 				}
 				if(null != value){
 					writen = true;
@@ -552,6 +579,13 @@ public class GNUPlot {
 		String inputData = new File(aOutputDir, aInputName).toString();
 		StringBuffer buffer = new StringBuffer();
 		String legend = 2 < nColumns || !aExtras.isEmpty() ? LEGEND_ON : LEGEND_OFF;
+		//add default x axis label if not specified
+		if(0 == aXLabel.length() && 1 == aXStat.length){
+			if(aXStat[0] == GraphOption.THREADS)
+				aXLabel.append(THREADS_X_LABEL);
+			else if(aXStat[0] == GraphOption.OPS)
+				aXLabel.append(OPS_X_LABEL);
+		}
 		buffer.append(String.format(BASE_SCRIPT, GNUPLOT_COMMENT, aTitle, legend, aXLabel,
 			aYLabel, aFormat, outputFile, aFormat, nColumns, inputData));
 		for(String fileName: aExtras){
@@ -560,7 +594,7 @@ public class GNUPlot {
 				BufferedReader reader = new BufferedReader(new FileReader(extraInput));
 				String headers = GNUPLOT_COMMENT;
 				while((headers = reader.readLine()).startsWith(GNUPLOT_COMMENT));
-				int columns = headers.split("\t").length;
+				int columns = headers.split("\t").length - 1;
 				buffer.append(String.format(EXTRA_DATA_FILE_LINE, columns, extraInput.toString()));
 			}
 			catch(IOException e){

@@ -188,34 +188,37 @@ public class TestSet {
 		StringBuffer serverSide = new StringBuffer();
 		for(DataPoint.Stat t: DataPoint.Stat.values()){
 			if(!t.isClientTime()){
-				serverSide.append(String.format("%s: %.6f\n", t.getKey(), aStats.getStat(t)));
+				serverSide.append(String.format("%s: %.6f\n", t.getKey(), aStats.getStat(
+					new DataPoint.Stat[]{t})));
 			}
 		}
 
 		String others = String.format("CBIR encryption: %f\nSymmetric encryption: %f\nMisc: %f\n"+
 			"Client Cache Hit Ratio: %.6f\n",
-			aStats.getStat(DataPoint.Stat.ENCRYPTION_CBIR),
-			aStats.getStat(DataPoint.Stat.ENCRYPTION_SYMMETRIC),
-			aStats.getStat(DataPoint.Stat.ENCRYPTION_MISC),
-			aStats.getStat(DataPoint.Stat.CLIENT_HIT_RATIO));
+			aStats.getStat(new DataPoint.Stat[]{DataPoint.Stat.ENCRYPTION_CBIR}),
+			aStats.getStat(new DataPoint.Stat[]{DataPoint.Stat.ENCRYPTION_SYMMETRIC}),
+			aStats.getStat(new DataPoint.Stat[]{DataPoint.Stat.ENCRYPTION_MISC}),
+			aStats.getStat(new DataPoint.Stat[]{DataPoint.Stat.CLIENT_HIT_RATIO}));
 
 		String clientSide = String.format(
 				"featureTime: %.6f indexTime: %.6f cryptoTime: %.6f cloudTime: %.6f Total time: %.6f\n"+
 				"Throughput:\nTotal Bytes uploaded: %.0f Total Bytes searched: %.0f Total Bytes "+
 				"downloaded: %.0f\nBytes uploaded/s: %.6f Bytes searched/s: %.6f Bytes downloaded/s:"+
 				" %.6f\nTotal operations: %.0f Operations/s: %.6f",
-				aStats.getStat(DataPoint.Stat.FEATURE_EXTRACTION),
-				aStats.getStat(DataPoint.Stat.CLIENT_INDEX),
-				aStats.getStat(DataPoint.Stat.ENCRYPTION_TOTAL),
-				aStats.getStat(DataPoint.Stat.CLIENT_NETWORK_TIME),
-				aStats.getStat(DataPoint.Stat.TOTAL_TIME), aStats.getStat(DataPoint.Stat.UPLOAD),
-				aStats.getStat(DataPoint.Stat.SEARCH),
-				aStats.getStat(DataPoint.Stat.DOWNLOAD),
-				aStats.getStat(DataPoint.Stat.UPLOAD)/aStats.getStat(DataPoint.Stat.TOTAL_TIME),
-				aStats.getStat(DataPoint.Stat.SEARCH)/aStats.getStat(DataPoint.Stat.TOTAL_TIME),
-				aStats.getStat(DataPoint.Stat.DOWNLOAD)/aStats.getStat(DataPoint.Stat.TOTAL_TIME),
-				aStats.getStat(DataPoint.Stat.TOTAL_OPERATIONS),
-				aStats.getStat(DataPoint.Stat.TOTAL_OPERATIONS)/aStats.getStat(DataPoint.Stat.TOTAL_TIME));
+				aStats.getStat(new DataPoint.Stat[]{DataPoint.Stat.FEATURE_EXTRACTION}),
+				aStats.getStat(new DataPoint.Stat[]{DataPoint.Stat.CLIENT_INDEX}),
+				aStats.getStat(new DataPoint.Stat[]{DataPoint.Stat.ENCRYPTION_TOTAL}),
+				aStats.getStat(new DataPoint.Stat[]{DataPoint.Stat.CLIENT_NETWORK_TIME}),
+				aStats.getStat(new DataPoint.Stat[]{DataPoint.Stat.TOTAL_TIME}),
+					aStats.getStat(new DataPoint.Stat[]{DataPoint.Stat.UPLOAD}),
+				aStats.getStat(new DataPoint.Stat[]{DataPoint.Stat.SEARCH}),
+				aStats.getStat(new DataPoint.Stat[]{DataPoint.Stat.DOWNLOAD}),
+				aStats.getStat(new DataPoint.Stat[]{DataPoint.Stat.UPLOAD, DataPoint.Stat.TOTAL_TIME}),
+				aStats.getStat(new DataPoint.Stat[]{DataPoint.Stat.SEARCH, DataPoint.Stat.TOTAL_TIME}),
+				aStats.getStat(new DataPoint.Stat[]{DataPoint.Stat.DOWNLOAD,DataPoint.Stat.TOTAL_TIME}),
+				aStats.getStat(new DataPoint.Stat[]{DataPoint.Stat.TOTAL_OPERATIONS}),
+				aStats.getStat(new DataPoint.Stat[]{DataPoint.Stat.TOTAL_OPERATIONS,
+					DataPoint.Stat.TOTAL_TIME}));
 		return serverSide.toString() + others + clientSide;
 	}
 
@@ -318,10 +321,9 @@ public class TestSet {
 				}
 				else if(args[0].equalsIgnoreCase(TITLE)){
 					StringBuffer titleBuffer = new StringBuffer();
-					titleBuffer.append("\""+args[1]);
+					titleBuffer.append(args[1]);
 					for(int i = 2; i < args.length; i++)
 						titleBuffer.append(" "+args[i]);
-					titleBuffer.append("\"");
 					aTitle = titleBuffer.toString();
 				}
 				else if(args[0].equalsIgnoreCase(RESET)||args[0].equalsIgnoreCase(CLEAR)||
